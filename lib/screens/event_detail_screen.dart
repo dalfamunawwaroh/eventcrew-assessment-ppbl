@@ -17,6 +17,22 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
   final Color navy = const Color(0xFF1E3A8A);
   final Color mint = const Color(0xFF10B981);
   final String _role = PrefsHelper.userRole;
+  String _status = 'Persiapan';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadStatus();
+  }
+
+  Future<void> _loadStatus() async {
+    final acara = await DatabaseHelper.instance.getAcaraById(widget.idAcara);
+    if (acara != null && mounted) {
+      setState(() {
+        _status = (acara['status'] as String?) ?? 'Persiapan';
+      });
+    }
+  }
 
   String formatRupiah(int number) {
     return NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ', decimalDigits: 0).format(number);
@@ -40,6 +56,24 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
             style: const TextStyle(color: Color(0xFF1E3A8A), fontWeight: FontWeight.bold, fontSize: 22),
           ),
           centerTitle: true,
+          actions: [
+            Padding(
+              padding: const EdgeInsets.only(right: 8.0),
+              child: Center(child: Text(_status, style: TextStyle(color: navy, fontWeight: FontWeight.bold))),
+            ),
+            PopupMenuButton<String>(
+              icon: Icon(Icons.edit_calendar, color: navy),
+              onSelected: (value) async {
+                await DatabaseHelper.instance.updateAcaraStatus(widget.idAcara, value);
+                if (mounted) setState(() => _status = value);
+              },
+              itemBuilder: (context) => const [
+                PopupMenuItem(value: 'Persiapan', child: Text('Persiapan')),
+                PopupMenuItem(value: 'Sedang Berjalan', child: Text('Sedang Berjalan')),
+                PopupMenuItem(value: 'Selesai', child: Text('Selesai')),
+              ],
+            ),
+          ],
         ),
         body: Column(
           children: [
@@ -118,7 +152,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
       builder: (context, snapshot) {
         if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
         final divisiList = snapshot.data!;
-        
+
         if (divisiList.isEmpty) return _buildPlaceholder('Belum ada divisi yang dibentuk.', Icons.groups_outlined);
 
         return ListView.builder(
@@ -127,88 +161,243 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
           itemCount: divisiList.length,
           itemBuilder: (context, index) {
             final div = divisiList[index];
-            return Container(
-              margin: const EdgeInsets.only(bottom: 16),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10, offset: const Offset(0, 4))],
-              ),
-              child: Theme(
-                data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
-                child: ExpansionTile(
-                  collapsedIconColor: Colors.grey,
-                  iconColor: navy,
-                  tilePadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                  leading: Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(color: navy.withOpacity(0.1), shape: BoxShape.circle),
-                    child: Icon(Icons.workspaces_filled, color: navy),
-                  ),
-                  // 🔥 Teks Alokasi Dana sudah dihapus dari sini 🔥
-                  title: Text(div['nama_divisi'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.only(left: 20, right: 20, bottom: 16),
-                      width: double.infinity,
-                      decoration: BoxDecoration(
-                        color: Colors.grey.shade50,
-                        borderRadius: const BorderRadius.vertical(bottom: Radius.circular(20)),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Divider(),
-                          const Padding(
-                            padding: EdgeInsets.symmetric(vertical: 8.0),
-                            child: Text('Daftar Tugas:', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey)),
-                          ),
-                          FutureBuilder<List<Map<String, dynamic>>>(
-                            future: DatabaseHelper.instance.getTasksByDivisi(div['id']),
-                            builder: (context, taskSnapshot) {
-                              if (!taskSnapshot.hasData) return const SizedBox.shrink();
-                              final tasks = taskSnapshot.data!;
-                              if (tasks.isEmpty) return const Padding(padding: EdgeInsets.only(bottom: 8.0), child: Text('Belum ada tugas.', style: TextStyle(color: Colors.grey, fontStyle: FontStyle.italic)));
 
-                              return Column(
-                                children: tasks.map((task) => CheckboxListTile(
-                                  contentPadding: EdgeInsets.zero,
-                                  controlAffinity: ListTileControlAffinity.leading,
-                                  activeColor: mint,
-                                  title: Text(
-                                    task['nama_task'], 
-                                    style: TextStyle(
-                                      decoration: task['is_done'] == 1 ? TextDecoration.lineThrough : null,
-                                      color: task['is_done'] == 1 ? Colors.grey : Colors.black87,
-                                    )
-                                  ),
-                                  value: task['is_done'] == 1,
-                                  onChanged: (bool? value) async {
-                                    await DatabaseHelper.instance.updateTaskStatus(task['id'], value! ? 1 : 0);
-                                    setState(() {});
-                                  },
-                                )).toList(),
-                              );
-                            },
-                          ),
-                          Align(
-                            alignment: Alignment.centerRight,
-                            child: TextButton.icon(
-                              onPressed: () => _showAddTaskDialog(div['id'], div['nama_divisi']),
-                              icon: Icon(Icons.add_task, color: navy, size: 18),
-                              label: Text('Tambah Tugas', style: TextStyle(color: navy, fontWeight: FontWeight.bold)),
-                            ),
-                          ),
-                        ],
+            return GestureDetector(
+              onLongPress: () => _showUpdateDivisiStatusDialog(div),
+              child: Container(
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10, offset: const Offset(0, 4))],
+                ),
+                child: Theme(
+                  data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+                  child: ExpansionTile(
+                    collapsedIconColor: Colors.grey,
+                    iconColor: navy,
+                    tilePadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                    leading: InkWell(
+                      borderRadius: BorderRadius.circular(30),
+                      onTap: () => _showUpdateDivisiStatusDialog(div),
+                      child: Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: _statusColor((div['status'] as String?) ?? 'Belum Aktif').withOpacity(0.2),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(Icons.workspaces_filled, color: _statusColor((div['status'] as String?) ?? 'Belum Aktif')),
                       ),
                     ),
-                  ],
+                    title: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            div['nama_divisi'],
+                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: _statusColor((div['status'] as String?) ?? 'Belum Aktif')),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        // Status chip (tappable)
+                        Builder(builder: (context) {
+                          final s = (div['status'] as String?) ?? 'Belum Aktif';
+                          return InkWell(
+                            borderRadius: BorderRadius.circular(12),
+                            onTap: () => _showUpdateDivisiStatusDialog(div),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Chip(
+                                  visualDensity: VisualDensity.compact,
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
+                                  backgroundColor: _statusColor(s).withOpacity(0.12),
+                                  label: Text(s, style: TextStyle(color: _statusColor(s), fontSize: 12, fontWeight: FontWeight.w600)),
+                                ),
+                                if (_role == 'Ketuplak')
+                                  IconButton(
+                                    padding: EdgeInsets.zero,
+                                    constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
+                                    icon: Icon(Icons.delete_outline, size: 20, color: Colors.red.shade400),
+                                    tooltip: 'Hapus Divisi',
+                                    onPressed: () => _confirmDeleteDivisi(div),
+                                  ),
+                              ],
+                            ),
+                          );
+                        }),
+                      ],
+                    ),
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.only(left: 20, right: 20, bottom: 16),
+                        width: double.infinity,
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade50,
+                          borderRadius: const BorderRadius.vertical(bottom: Radius.circular(20)),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Divider(),
+                            const Padding(
+                              padding: EdgeInsets.symmetric(vertical: 8.0),
+                              child: Text('Daftar Tugas:', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey)),
+                            ),
+
+                            FutureBuilder<List<Map<String, dynamic>>>(
+                              future: DatabaseHelper.instance.getTasksByDivisi(div['id']),
+                              builder: (context, taskSnapshot) {
+                                if (!taskSnapshot.hasData) return const SizedBox.shrink();
+                                final tasks = taskSnapshot.data!;
+                                if (tasks.isEmpty) return const Padding(padding: EdgeInsets.only(bottom: 8.0), child: Text('Belum ada tugas.', style: TextStyle(color: Colors.grey, fontStyle: FontStyle.italic)));
+
+                                  return Column(
+                                    children: tasks.map((task) {
+                                      return CheckboxListTile(
+                                        contentPadding: EdgeInsets.zero,
+                                        controlAffinity: ListTileControlAffinity.leading,
+                                        activeColor: mint,
+                                        title: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              task['nama_task'],
+                                              style: TextStyle(
+                                                decoration: task['is_done'] == 1 ? TextDecoration.lineThrough : null,
+                                                color: task['is_done'] == 1 ? Colors.grey : Colors.black87,
+                                              ),
+                                            ),
+                                            if (task['deadline'] != null && (task['deadline'] as String).isNotEmpty)
+                                              Padding(
+                                                padding: const EdgeInsets.only(top: 4.0),
+                                                child: Text('Deadline: ${task['deadline']}', style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                                              ),
+                                          ],
+                                        ),
+                                        value: task['is_done'] == 1,
+                                        secondary: IconButton(
+                                          icon: Icon(Icons.delete_outline, size: 20, color: Colors.red.shade400),
+                                          onPressed: () async {
+                                            final confirm = await showDialog<bool>(
+                                              context: context,
+                                              builder: (ctx) => AlertDialog(
+                                                title: const Text('Hapus Tugas'),
+                                                content: Text('Hapus tugas "${task['nama_task']}"?'),
+                                                actions: [
+                                                  TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Batal')),
+                                                  ElevatedButton(
+                                                    style: ElevatedButton.styleFrom(backgroundColor: Colors.red.shade400),
+                                                    onPressed: () => Navigator.pop(ctx, true),
+                                                    child: const Text('Hapus', style: TextStyle(color: Colors.white)),
+                                                  ),
+                                                ],
+                                              ),
+                                            );
+                                            if (confirm == true) {
+                                              await DatabaseHelper.instance.deleteTask(task['id']);
+                                              if (mounted) setState(() {});
+                                            }
+                                          },
+                                        ),
+                                        onChanged: (bool? value) async {
+                                          await DatabaseHelper.instance.updateTaskStatus(task['id'], value! ? 1 : 0);
+                                          setState(() {});
+                                        },
+                                      );
+                                    }).toList(),
+                                  );
+                              },
+                            ),
+
+                            Align(
+                              alignment: Alignment.centerRight,
+                              child: TextButton.icon(
+                                onPressed: () => _showAddTaskDialog(div['id'], div['nama_divisi']),
+                                icon: Icon(Icons.add_task, color: navy, size: 18),
+                                label: Text('Tambah Tugas', style: TextStyle(color: navy, fontWeight: FontWeight.bold)),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             );
           },
         );
       },
+    );
+  }
+
+  void _confirmDeleteDivisi(Map<String, dynamic> div) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Hapus Divisi', style: TextStyle(fontWeight: FontWeight.bold)),
+        content: Text('Yakin ingin menghapus divisi "${div['nama_divisi']}"? Semua tugas dan pengeluaran terkait juga akan dihapus.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Batal')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red.shade400),
+            onPressed: () async {
+              await DatabaseHelper.instance.deleteDivisi(div['id']);
+              if (mounted) setState(() {});
+              Navigator.pop(context);
+            },
+            child: const Text('Hapus', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Color _statusColor(String status) {
+    switch (status) {
+      case 'Sedang Bertugas':
+        return Colors.lightBlue.shade600;
+      case 'Selesai':
+        return Colors.green.shade600;
+      case 'Belum Aktif':
+      default:
+        return Colors.grey.shade600;
+    }
+  }
+
+  void _showUpdateDivisiStatusDialog(Map<String, dynamic> div) {
+    String current = (div['status'] as String?) ?? 'Belum Aktif';
+    String selected = current;
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text("Ubah Status Divisi: ${div['nama_divisi']}", style: const TextStyle(fontWeight: FontWeight.bold)),
+        content: StatefulBuilder(
+          builder: (context, setInner) => Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              RadioListTile<String>(value: 'Belum Aktif', groupValue: selected, title: const Text('Belum Aktif'), onChanged: (v) => setInner(() => selected = v!)),
+              RadioListTile<String>(value: 'Sedang Bertugas', groupValue: selected, title: const Text('Sedang Bertugas'), onChanged: (v) => setInner(() => selected = v!)),
+              RadioListTile<String>(value: 'Selesai', groupValue: selected, title: const Text('Selesai'), onChanged: (v) => setInner(() => selected = v!)),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Batal')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: mint),
+            onPressed: () async {
+              if (selected != current) {
+                await DatabaseHelper.instance.updateDivisiStatus(div['id'], selected);
+                if (mounted) setState(() {});
+              }
+              Navigator.pop(context);
+            },
+            child: const Text('Simpan', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
     );
   }
 
@@ -324,7 +513,6 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
   // =================================================================
   void _showAddDivisiDialog() {
     final nameController = TextEditingController();
-    final budgetController = TextEditingController();
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -334,8 +522,6 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             TextField(controller: nameController, decoration: InputDecoration(labelText: 'Nama Divisi', border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)))),
-            const SizedBox(height: 16),
-            TextField(controller: budgetController, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: 'Alokasi Dana', border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)))),
           ],
         ),
         actions: [
@@ -344,12 +530,11 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
             style: ElevatedButton.styleFrom(backgroundColor: mint, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
             onPressed: () async {
               String nama = nameController.text.trim();
-              String budget = budgetController.text.replaceAll(RegExp(r'[^0-9]'), '');
-              if (nama.isNotEmpty && budget.isNotEmpty) {
+              if (nama.isNotEmpty) {
                 await DatabaseHelper.instance.insertDivisi({
                   'id_acara': widget.idAcara,
                   'nama_divisi': nama,
-                  'alokasi_budget': int.parse(budget),
+                  'alokasi_budget': 0,
                 });
                 if (mounted) Navigator.pop(context);
                 setState(() {});
@@ -364,12 +549,38 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
 
   void _showAddTaskDialog(int idDivisi, String namaDivisi) {
     final taskController = TextEditingController();
+    final deadlineController = TextEditingController();
+    DateTime? pickedDate;
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
         title: Text('Tugas Baru $namaDivisi', style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1E3A8A), fontSize: 18)),
-        content: TextField(controller: taskController, decoration: InputDecoration(hintText: 'Misal: Beli Kertas HVS', border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)))),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(controller: taskController, decoration: InputDecoration(hintText: 'Misal: Beli Kertas HVS', border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)))),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(child: TextField(controller: deadlineController, readOnly: true, decoration: InputDecoration(hintText: 'Pilih deadline (opsional)', border: OutlineInputBorder(borderRadius: BorderRadius.circular(12))))),
+                const SizedBox(width: 8),
+                IconButton(
+                  icon: const Icon(Icons.calendar_month),
+                  onPressed: () async {
+                    final now = DateTime.now();
+                    final dd = await showDatePicker(context: context, initialDate: now, firstDate: DateTime(now.year - 2), lastDate: DateTime(now.year + 5));
+                    if (dd != null) {
+                      pickedDate = dd;
+                      deadlineController.text = dd.toIso8601String().split('T')[0];
+                    }
+                  },
+                ),
+              ],
+            ),
+          ],
+        ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('Batal', style: TextStyle(color: Colors.grey))),
           ElevatedButton(
@@ -380,6 +591,8 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                   'id_divisi': idDivisi,
                   'nama_task': taskController.text.trim(),
                   'is_done': 0,
+                  'status': 'Belum Selesai',
+                  'deadline': deadlineController.text.isEmpty ? null : deadlineController.text,
                 });
                 if (mounted) Navigator.pop(context);
                 setState(() {});

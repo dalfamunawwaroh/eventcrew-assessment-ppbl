@@ -17,7 +17,7 @@ class DatabaseHelper {
   Future<Database> _initDB(String filePath) async {
     final dbPath = await getApplicationDocumentsDirectory();
     final path = join(dbPath.path, filePath);
-    return await openDatabase(path, version: 1, onCreate: _createDB);
+    return await openDatabase(path, version: 4, onCreate: _createDB, onUpgrade: _onUpgrade);
   }
 
   Future _createDB(Database db, int version) async {
@@ -26,7 +26,8 @@ class DatabaseHelper {
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         nama_acara TEXT NOT NULL,
         tanggal TEXT NOT NULL,
-        budget_total INTEGER NOT NULL
+        budget_total INTEGER NOT NULL,
+        status TEXT NOT NULL DEFAULT 'Persiapan'
       )
     ''');
 
@@ -35,7 +36,8 @@ class DatabaseHelper {
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         id_acara INTEGER NOT NULL,
         nama_divisi TEXT NOT NULL,
-        alokasi_budget INTEGER NOT NULL
+        alokasi_budget INTEGER NOT NULL,
+        status TEXT NOT NULL DEFAULT 'Belum Aktif'
       )
     ''');
 
@@ -44,7 +46,9 @@ class DatabaseHelper {
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         id_divisi INTEGER NOT NULL,
         nama_task TEXT NOT NULL,
-        is_done INTEGER NOT NULL DEFAULT 0
+        is_done INTEGER NOT NULL DEFAULT 0,
+        status TEXT NOT NULL DEFAULT 'Belum Selesai',
+        deadline TEXT
       )
     ''');
 
@@ -56,6 +60,51 @@ class DatabaseHelper {
         nominal INTEGER NOT NULL
       )
     ''');
+  }
+
+  Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    // Add 'status' column to 'acara' table when upgrading from version 1 -> 2
+    if (oldVersion < 2) {
+      try {
+        await db.execute("ALTER TABLE acara ADD COLUMN status TEXT NOT NULL DEFAULT 'Persiapan'");
+      } catch (e) {
+        // ignore if column already exists or any issue; we don't want to break existing DB
+      }
+    }
+    // Add 'status' column to 'divisi' table when upgrading to version 3
+    if (oldVersion < 3) {
+      try {
+        await db.execute("ALTER TABLE divisi ADD COLUMN status TEXT NOT NULL DEFAULT 'Belum Aktif'");
+      } catch (e) {
+        // ignore if column already exists or any issue
+      }
+    }
+    // Add 'status' and 'deadline' columns to 'task' table when upgrading to version 4
+    if (oldVersion < 4) {
+      try {
+        await db.execute("ALTER TABLE task ADD COLUMN status TEXT NOT NULL DEFAULT 'Belum Selesai'");
+      } catch (e) {}
+      try {
+        await db.execute("ALTER TABLE task ADD COLUMN deadline TEXT");
+      } catch (e) {}
+    }
+  }
+
+  Future<void> updateDivisiStatus(int id, String statusNew) async {
+    final db = await instance.database;
+    await db.update('divisi', {'status': statusNew}, where: 'id = ?', whereArgs: [id]);
+  }
+
+  Future<Map<String, dynamic>?> getAcaraById(int id) async {
+    final db = await instance.database;
+    final res = await db.query('acara', where: 'id = ?', whereArgs: [id], limit: 1);
+    if (res.isEmpty) return null;
+    return res.first;
+  }
+
+  Future<void> updateAcaraStatus(int id, String status) async {
+    final db = await instance.database;
+    await db.update('acara', {'status': status}, where: 'id = ?', whereArgs: [id]);
   }
 
   // --- CRUD ACARA ---
@@ -98,7 +147,13 @@ class DatabaseHelper {
 
   Future<void> updateTaskStatus(int id, int isDone) async {
     final db = await instance.database;
-    await db.update('task', {'is_done': isDone}, where: 'id = ?', whereArgs: [id]);
+    final statusText = isDone == 1 ? 'Selesai' : 'Belum Selesai';
+    await db.update('task', {'is_done': isDone, 'status': statusText}, where: 'id = ?', whereArgs: [id]);
+  }
+
+  Future<int> deleteTask(int id) async {
+    final db = await instance.database;
+    return await db.delete('task', where: 'id = ?', whereArgs: [id]);
   }
 
   // --- CRUD PENGELUARAN ---
@@ -110,5 +165,18 @@ class DatabaseHelper {
   Future<List<Map<String, dynamic>>> getPengeluaranByDivisi(int idDivisi) async {
     final db = await instance.database;
     return await db.query('pengeluaran', where: 'id_divisi = ?', whereArgs: [idDivisi]);
+  }
+
+  /// Delete a division and its related tasks and pengeluaran within a transaction.
+  Future<int> deleteDivisi(int id) async {
+    final db = await instance.database;
+    return await db.transaction((txn) async {
+      // delete tasks related to divisi
+      await txn.delete('task', where: 'id_divisi = ?', whereArgs: [id]);
+      // delete pengeluaran related to divisi
+      await txn.delete('pengeluaran', where: 'id_divisi = ?', whereArgs: [id]);
+      // delete the divisi itself
+      return await txn.delete('divisi', where: 'id = ?', whereArgs: [id]);
+    });
   }
 }
