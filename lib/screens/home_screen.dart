@@ -36,6 +36,7 @@ class _HomeScreenState extends State<HomeScreen> {
   void _showAddAcaraBottomSheet() {
     final namaController = TextEditingController();
     final budgetController = TextEditingController();
+    final tanggalController = TextEditingController();
 
     showModalBottomSheet(
       context: context,
@@ -75,6 +76,28 @@ class _HomeScreenState extends State<HomeScreen> {
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
                 ),
               ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: tanggalController,
+                readOnly: true,
+                decoration: InputDecoration(
+                  labelText: 'Tanggal Pelaksanaan Acara',
+                  prefixIcon: const Icon(Icons.calendar_today),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
+                ),
+                onTap: () async {
+                  final now = DateTime.now();
+                  final picked = await showDatePicker(
+                    context: context,
+                    initialDate: now,
+                    firstDate: now,
+                    lastDate: DateTime(now.year + 5),
+                  );
+                  if (picked != null) {
+                    tanggalController.text = picked.toIso8601String().split('T')[0];
+                  }
+                },
+              ),
               const SizedBox(height: 32),
               SizedBox(
                 width: double.infinity,
@@ -87,12 +110,13 @@ class _HomeScreenState extends State<HomeScreen> {
                   onPressed: () async {
                     String nama = namaController.text.trim();
                     String rawBudget = budgetController.text.replaceAll(RegExp(r'[^0-9]'), '');
+                    String tanggal = tanggalController.text.trim();
                     
-                    if (nama.isEmpty || rawBudget.isEmpty) return;
+                    if (nama.isEmpty || rawBudget.isEmpty || tanggal.isEmpty) return;
 
                     await DatabaseHelper.instance.insertAcara({
                       'nama_acara': nama,
-                      'tanggal': DateTime.now().toString().split(' ')[0],
+                      'tanggal_acara': tanggal,
                       'budget_total': int.parse(rawBudget),
                     });
 
@@ -211,7 +235,7 @@ class _HomeScreenState extends State<HomeScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(acara['tanggal'], style: const TextStyle(color: Color(0xFF1E3A8A), fontWeight: FontWeight.bold)),
+                  Text((acara['tanggal_acara'] as String?) ?? (acara['tanggal'] as String?) ?? '', style: const TextStyle(color: Color(0xFF1E3A8A), fontWeight: FontWeight.bold)),
                   if (_role == 'Ketuplak')
                     InkWell(
                       onTap: () async {
