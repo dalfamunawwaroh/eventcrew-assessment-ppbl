@@ -111,7 +111,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                   PopupMenuItem(value: 'edit_acara', child: Text('✏️ Edit Info Acara')),
                   PopupMenuDivider(),
                   PopupMenuItem(value: 'Persiapan', child: Text('Ubah Status: Persiapan')),
-                  PopupMenuItem(value: 'Sedang Berjalan', child: Text('Ubah Status: Berjalan')),
+                  PopupMenuItem(value: 'Aktif', child: Text('Ubah Status: Aktif')),
                   PopupMenuItem(value: 'Selesai', child: Text('Ubah Status: Selesai')),
                 ],
               ),
