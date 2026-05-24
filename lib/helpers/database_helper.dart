@@ -65,44 +65,26 @@ class DatabaseHelper {
   }
 
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
-    // Add 'status' column to 'acara' table when upgrading from version 1 -> 2
     if (oldVersion < 2) {
-      try {
-        await db.execute("ALTER TABLE acara ADD COLUMN status TEXT NOT NULL DEFAULT 'Persiapan'");
-      } catch (e) {
-        // ignore if column already exists or any issue; we don't want to break existing DB
-      }
+      try { await db.execute("ALTER TABLE acara ADD COLUMN status TEXT NOT NULL DEFAULT 'Persiapan'"); } catch (_) {}
     }
-    // Add 'status' column to 'divisi' table when upgrading to version 3
     if (oldVersion < 3) {
-      try {
-        await db.execute("ALTER TABLE divisi ADD COLUMN status TEXT NOT NULL DEFAULT 'Belum Aktif'");
-      } catch (e) {
-        // ignore if column already exists or any issue
-      }
+      try { await db.execute("ALTER TABLE divisi ADD COLUMN status TEXT NOT NULL DEFAULT 'Belum Aktif'"); } catch (_) {}
     }
-    // Add 'status' and 'deadline' columns to 'task' table when upgrading to version 4
     if (oldVersion < 4) {
-      try {
-        await db.execute("ALTER TABLE task ADD COLUMN status TEXT NOT NULL DEFAULT 'Belum Selesai'");
-      } catch (e) {}
-      try {
-        await db.execute("ALTER TABLE task ADD COLUMN deadline TEXT");
-      } catch (e) {}
+      try { await db.execute("ALTER TABLE task ADD COLUMN status TEXT NOT NULL DEFAULT 'Belum Selesai'"); } catch (_) {}
+      try { await db.execute("ALTER TABLE task ADD COLUMN deadline TEXT"); } catch (_) {}
     }
-    // Rename 'tanggal' to 'tanggal_acara' when upgrading to version 5
     if (oldVersion < 5) {
       try {
         await db.execute("ALTER TABLE acara RENAME COLUMN tanggal TO tanggal_acara");
       } catch (e) {
-        // Fallback for older SQLite versions that don't support RENAME COLUMN
         try {
           await db.execute("ALTER TABLE acara ADD COLUMN tanggal_acara TEXT DEFAULT ''");
           await db.execute("UPDATE acara SET tanggal_acara = tanggal");
-        } catch (e2) {}
+        } catch (_) {}
       }
     }
-    // Update pengeluaran table schema when upgrading to version 6
     if (oldVersion < 6) {
       try { await db.execute("ALTER TABLE pengeluaran RENAME COLUMN id_divisi TO divisi_id"); } catch (_) {}
       try { await db.execute("ALTER TABLE pengeluaran RENAME COLUMN nama_item TO nama_barang"); } catch (_) {}
@@ -111,11 +93,7 @@ class DatabaseHelper {
     }
   }
 
-  Future<void> updateDivisiStatus(int id, String statusNew) async {
-    final db = await instance.database;
-    await db.update('divisi', {'status': statusNew}, where: 'id = ?', whereArgs: [id]);
-  }
-
+  // --- CRUD ACARA ---
   Future<Map<String, dynamic>?> getAcaraById(int id) async {
     final db = await instance.database;
     final res = await db.query('acara', where: 'id = ?', whereArgs: [id], limit: 1);
@@ -123,12 +101,6 @@ class DatabaseHelper {
     return res.first;
   }
 
-  Future<void> updateAcaraStatus(int id, String status) async {
-    final db = await instance.database;
-    await db.update('acara', {'status': status}, where: 'id = ?', whereArgs: [id]);
-  }
-
-  // --- CRUD ACARA ---
   Future<int> insertAcara(Map<String, dynamic> row) async {
     final db = await instance.database;
     return await db.insert('acara', row);
@@ -144,10 +116,63 @@ class DatabaseHelper {
     return await db.delete('acara', where: 'id = ?', whereArgs: [id]);
   }
 
+  Future<void> updateAcaraStatus(int id, String status) async {
+    final db = await instance.database;
+    await db.update('acara', {'status': status}, where: 'id = ?', whereArgs: [id]);
+  }
+
+  Future<int> updateAcara(int id, Map<String, dynamic> data) async {
+    final db = await instance.database;
+    return await db.update('acara', data, where: 'id = ?', whereArgs: [id]);
+  }
+
   // --- CRUD DIVISI ---
   Future<int> insertDivisi(Map<String, dynamic> row) async {
     final db = await instance.database;
     return await db.insert('divisi', row);
+  }
+
+  Future<bool> insertDivisiWithValidasi(Map<String, dynamic> row) async {
+    final db = await instance.database;
+    return await db.transaction<bool>((txn) async {
+      final idAcara = row['id_acara'];
+      final alokasiBaru = row['alokasi_budget'] as int;
+
+      final acaraRows = await txn.query('acara', where: 'id = ?', whereArgs: [idAcara], limit: 1);
+      if (acaraRows.isEmpty) return false;
+      final budgetAcara = acaraRows.first['budget_total'] as int;
+
+      final sumRows = await txn.rawQuery('SELECT SUM(alokasi_budget) as total FROM divisi WHERE id_acara = ?', [idAcara]);
+      int totalTeralokasi = 0;
+      if (sumRows.isNotEmpty && sumRows.first['total'] != null) {
+        totalTeralokasi = (sumRows.first['total'] as num).toInt();
+      }
+
+      if (totalTeralokasi + alokasiBaru > budgetAcara) return false; 
+
+      await txn.insert('divisi', row);
+      return true;
+    });
+  }
+
+  Future<bool> updateDivisiWithValidasi(int idDivisi, int idAcara, String namaDivisi, int alokasiBaru) async {
+    final db = await instance.database;
+    return await db.transaction<bool>((txn) async {
+      final acaraRows = await txn.query('acara', where: 'id = ?', whereArgs: [idAcara], limit: 1);
+      if (acaraRows.isEmpty) return false;
+      final budgetAcara = acaraRows.first['budget_total'] as int;
+
+      final sumRows = await txn.rawQuery('SELECT SUM(alokasi_budget) as total FROM divisi WHERE id_acara = ? AND id != ?', [idAcara, idDivisi]);
+      int totalSelainIni = 0;
+      if (sumRows.isNotEmpty && sumRows.first['total'] != null) {
+        totalSelainIni = (sumRows.first['total'] as num).toInt();
+      }
+
+      if (totalSelainIni + alokasiBaru > budgetAcara) return false;
+
+      await txn.update('divisi', {'nama_divisi': namaDivisi, 'alokasi_budget': alokasiBaru}, where: 'id = ?', whereArgs: [idDivisi]);
+      return true;
+    });
   }
 
   Future<List<Map<String, dynamic>>> getDivisiByAcara(int idAcara) async {
@@ -155,10 +180,63 @@ class DatabaseHelper {
     return await db.query('divisi', where: 'id_acara = ?', whereArgs: [idAcara]);
   }
 
+  Future<int> deleteDivisi(int id) async {
+    final db = await instance.database;
+    return await db.transaction((txn) async {
+      await txn.delete('task', where: 'id_divisi = ?', whereArgs: [id]);
+      try {
+        await txn.delete('pengeluaran', where: 'divisi_id = ?', whereArgs: [id]);
+      } catch (_) {
+        await txn.delete('pengeluaran', where: 'id_divisi = ?', whereArgs: [id]);
+      }
+      return await txn.delete('divisi', where: 'id = ?', whereArgs: [id]);
+    });
+  }
+
+  // --- AUTOMATISASI STATUS DIVISI BERDASARKAN TUGAS ---
+  Future<void> syncDivisiStatus(int idDivisi) async {
+    final db = await instance.database;
+    final res = await db.rawQuery(
+      'SELECT COUNT(*) as total, SUM(CASE WHEN is_done = 1 THEN 1 ELSE 0 END) as done FROM task WHERE id_divisi = ?',
+      [idDivisi],
+    );
+    
+    String statusBaru = 'Belum Aktif';
+    if (res.isNotEmpty) {
+      int total = res.first['total'] as int? ?? 0;
+      int done = res.first['done'] as int? ?? 0;
+
+      if (total > 0) {
+        if (done == total) {
+          statusBaru = 'Selesai';
+        } else {
+          statusBaru = 'Sedang Bertugas';
+        }
+      }
+    }
+    await db.update('divisi', {'status': statusBaru}, where: 'id = ?', whereArgs: [idDivisi]);
+  }
+
+  Future<Map<String, int>> getTaskProgressByDivisi(int idDivisi) async {
+    final db = await instance.database;
+    final res = await db.rawQuery(
+      'SELECT COUNT(*) as total, SUM(CASE WHEN is_done = 1 THEN 1 ELSE 0 END) as done FROM task WHERE id_divisi = ?',
+      [idDivisi],
+    );
+    if (res.isNotEmpty) {
+      int total = res.first['total'] as int? ?? 0;
+      int done = res.first['done'] as int? ?? 0;
+      return {'total': total, 'done': done};
+    }
+    return {'total': 0, 'done': 0};
+  }
+
   // --- CRUD TASK ---
   Future<int> insertTask(Map<String, dynamic> row) async {
     final db = await instance.database;
-    return await db.insert('task', row);
+    int id = await db.insert('task', row);
+    await syncDivisiStatus(row['id_divisi']); // Auto update status
+    return id;
   }
 
   Future<List<Map<String, dynamic>>> getTasksByDivisi(int idDivisi) async {
@@ -170,45 +248,29 @@ class DatabaseHelper {
     final db = await instance.database;
     final statusText = isDone == 1 ? 'Selesai' : 'Belum Selesai';
     await db.update('task', {'is_done': isDone, 'status': statusText}, where: 'id = ?', whereArgs: [id]);
+    
+    // Ambil id_divisi untuk auto update status
+    final task = await db.query('task', columns: ['id_divisi'], where: 'id = ?', whereArgs: [id]);
+    if (task.isNotEmpty) {
+      await syncDivisiStatus(task.first['id_divisi'] as int);
+    }
   }
 
-  /// Update deadline tugas dengan validasi agar tidak melewati tanggal acara.
-  ///
-  /// Mengembalikan `true` jika update berhasil, `false` jika `newDeadline`
-  /// melewati tanggal acara. Jika data task/divisi/acara tidak ditemukan,
-  /// maka akan melempar Exception.
-  Future<bool> updateTaskDeadline(int taskId, String newDeadline) async {
+  Future<int> updateTaskDetail(int id, String namaTask, String? deadline) async {
     final db = await instance.database;
-    return await db.transaction<bool>((txn) async {
-      final taskRows = await txn.query('task', where: 'id = ?', whereArgs: [taskId], limit: 1);
-      if (taskRows.isEmpty) throw Exception('Task tidak ditemukan');
-      final task = taskRows.first;
-
-      final divisiRows = await txn.query('divisi', where: 'id = ?', whereArgs: [task['id_divisi']], limit: 1);
-      if (divisiRows.isEmpty) throw Exception('Divisi tidak ditemukan');
-      final idAcara = divisiRows.first['id_acara'];
-
-      final acaraRows = await txn.query('acara', where: 'id = ?', whereArgs: [idAcara], limit: 1);
-      if (acaraRows.isEmpty) throw Exception('Acara tidak ditemukan');
-      
-      final tanggalAcaraStr = (acaraRows.first['tanggal_acara'] as String?) ?? (acaraRows.first['tanggal'] as String?) ?? '';
-      if (tanggalAcaraStr.isEmpty) throw Exception('Tanggal acara tidak ditemukan');
-      final tanggalAcara = tanggalAcaraStr;
-
-      final newDeadlineDate = DateTime.parse(newDeadline);
-      final acaraDate = DateTime.parse(tanggalAcara);
-      if (newDeadlineDate.isAfter(acaraDate)) {
-        return false;
-      }
-
-      await txn.update('task', {'deadline': newDeadline}, where: 'id = ?', whereArgs: [taskId]);
-      return true;
-    });
+    return await db.update('task', {'nama_task': namaTask, 'deadline': deadline}, where: 'id = ?', whereArgs: [id]);
   }
 
   Future<int> deleteTask(int id) async {
     final db = await instance.database;
-    return await db.delete('task', where: 'id = ?', whereArgs: [id]);
+    // Ambil id_divisi sebelum dihapus
+    final task = await db.query('task', columns: ['id_divisi'], where: 'id = ?', whereArgs: [id]);
+    int idDivisi = 0;
+    if (task.isNotEmpty) idDivisi = task.first['id_divisi'] as int;
+
+    int rows = await db.delete('task', where: 'id = ?', whereArgs: [id]);
+    if (idDivisi != 0) await syncDivisiStatus(idDivisi); // Auto update status
+    return rows;
   }
 
   // --- CRUD PENGELUARAN ---
@@ -217,87 +279,45 @@ class DatabaseHelper {
     return await db.insert('pengeluaran', row);
   }
 
-  /// Menyimpan pengeluaran dengan validasi anggaran.
-  /// Mengembalikan `true` jika berhasil, `false` jika melebihi alokasi divisi.
   Future<bool> insertPengeluaranWithValidasi({
-    required int divisiId,
-    required String tanggal,
-    required String namaBarang,
-    required int jumlah,
-    required int nominal,
+    required int divisiId, required String tanggal, required String namaBarang, required int jumlah, required int nominal,
   }) async {
     final db = await instance.database;
     return await db.transaction<bool>((txn) async {
-      // 1. Ambil alokasi divisi
       final divisiRows = await txn.query('divisi', where: 'id = ?', whereArgs: [divisiId], limit: 1);
       if (divisiRows.isEmpty) throw Exception('Divisi tidak ditemukan');
       final alokasi = (divisiRows.first['alokasi_budget'] as num).toInt();
 
-      // 2. Hitung total pengeluaran saat ini untuk divisi ini
-      final totalRows = await txn.rawQuery(
-        'SELECT SUM(jumlah * nominal) as total FROM pengeluaran WHERE divisi_id = ?',
-        [divisiId],
-      );
-      final totalSaatIni = totalRows.isNotEmpty && totalRows.first['total'] != null
-          ? (totalRows.first['total'] as num).toInt()
-          : 0;
+      final totalRows = await txn.rawQuery('SELECT SUM(jumlah * nominal) as total FROM pengeluaran WHERE divisi_id = ?', [divisiId]);
+      final totalSaatIni = totalRows.isNotEmpty && totalRows.first['total'] != null ? (totalRows.first['total'] as num).toInt() : 0;
 
-      // 3. Validasi: total saat ini + pengeluaran baru > alokasi?
       final totalBaru = totalSaatIni + (jumlah * nominal);
-      if (alokasi > 0 && totalBaru > alokasi) {
-        return false; // Over budget!
-      }
+      if (alokasi > 0 && totalBaru > alokasi) return false; 
 
-      // 4. Aman, lakukan insert
       await txn.insert('pengeluaran', {
-        'divisi_id': divisiId,
-        'tanggal': tanggal,
-        'nama_barang': namaBarang,
-        'jumlah': jumlah,
-        'nominal': nominal,
+        'divisi_id': divisiId, 'tanggal': tanggal, 'nama_barang': namaBarang, 'jumlah': jumlah, 'nominal': nominal,
       });
       return true;
     });
   }
 
-  /// Memperbarui pengeluaran dengan validasi anggaran.
-  /// Mengembalikan `true` jika berhasil, `false` jika melebihi alokasi divisi.
   Future<bool> updatePengeluaranWithValidasi({
-    required int id,
-    required int divisiId,
-    required String tanggal,
-    required String namaBarang,
-    required int jumlah,
-    required int nominal,
+    required int id, required int divisiId, required String tanggal, required String namaBarang, required int jumlah, required int nominal,
   }) async {
     final db = await instance.database;
     return await db.transaction<bool>((txn) async {
-      // 1. Ambil alokasi divisi
       final divisiRows = await txn.query('divisi', where: 'id = ?', whereArgs: [divisiId], limit: 1);
       if (divisiRows.isEmpty) throw Exception('Divisi tidak ditemukan');
       final alokasi = (divisiRows.first['alokasi_budget'] as num).toInt();
 
-      // 2. Hitung total pengeluaran SELAIN item yang sedang diedit
-      final totalRows = await txn.rawQuery(
-        'SELECT SUM(jumlah * nominal) as total FROM pengeluaran WHERE divisi_id = ? AND id != ?',
-        [divisiId, id],
-      );
-      final totalSelainIni = totalRows.isNotEmpty && totalRows.first['total'] != null
-          ? (totalRows.first['total'] as num).toInt()
-          : 0;
+      final totalRows = await txn.rawQuery('SELECT SUM(jumlah * nominal) as total FROM pengeluaran WHERE divisi_id = ? AND id != ?', [divisiId, id]);
+      final totalSelainIni = totalRows.isNotEmpty && totalRows.first['total'] != null ? (totalRows.first['total'] as num).toInt() : 0;
 
-      // 3. Validasi: total selain item ini + nilai baru > alokasi?
       final totalBaru = totalSelainIni + (jumlah * nominal);
-      if (alokasi > 0 && totalBaru > alokasi) {
-        return false; // Over budget!
-      }
+      if (alokasi > 0 && totalBaru > alokasi) return false;
 
-      // 4. Aman, lakukan update
       await txn.update('pengeluaran', {
-        'tanggal': tanggal,
-        'nama_barang': namaBarang,
-        'jumlah': jumlah,
-        'nominal': nominal,
+        'tanggal': tanggal, 'nama_barang': namaBarang, 'jumlah': jumlah, 'nominal': nominal,
       }, where: 'id = ?', whereArgs: [id]);
       return true;
     });
@@ -310,27 +330,20 @@ class DatabaseHelper {
 
   Future<int> getTotalPengeluaranByDivisi(int divisiId) async {
     final db = await instance.database;
-    final result = await db.rawQuery(
-      'SELECT SUM(jumlah * nominal) as total FROM pengeluaran WHERE divisi_id = ?',
-      [divisiId],
-    );
+    final result = await db.rawQuery('SELECT SUM(jumlah * nominal) as total FROM pengeluaran WHERE divisi_id = ?', [divisiId]);
     if (result.isNotEmpty && result.first['total'] != null) {
       return (result.first['total'] as num).toInt();
     }
     return 0;
   }
 
-  /// Menghitung TOTAL SEMUA pengeluaran dari seluruh divisi dalam satu acara.
-  /// Menggunakan INNER JOIN antara tabel pengeluaran dan divisi.
   Future<int> getGrandTotalPengeluaranByAcara(int acaraId) async {
     final db = await instance.database;
-    final result = await db.rawQuery(
-      '''SELECT SUM(p.jumlah * p.nominal) as grand_total
-         FROM pengeluaran p
-         INNER JOIN divisi d ON p.divisi_id = d.id
-         WHERE d.id_acara = ?''',
-      [acaraId],
-    );
+    final result = await db.rawQuery('''
+      SELECT SUM(p.jumlah * p.nominal) as grand_total
+      FROM pengeluaran p INNER JOIN divisi d ON p.divisi_id = d.id
+      WHERE d.id_acara = ?
+    ''', [acaraId]);
     if (result.isNotEmpty && result.first['grand_total'] != null) {
       return (result.first['grand_total'] as num).toInt();
     }
@@ -345,22 +358,5 @@ class DatabaseHelper {
   Future<int> deletePengeluaran(int id) async {
     final db = await instance.database;
     return await db.delete('pengeluaran', where: 'id = ?', whereArgs: [id]);
-  }
-
-  /// Delete a division and its related tasks and pengeluaran within a transaction.
-  Future<int> deleteDivisi(int id) async {
-    final db = await instance.database;
-    return await db.transaction((txn) async {
-      // delete tasks related to divisi
-      await txn.delete('task', where: 'id_divisi = ?', whereArgs: [id]);
-      // delete pengeluaran related to divisi (handle both old and new schema columns gracefully)
-      try {
-        await txn.delete('pengeluaran', where: 'divisi_id = ?', whereArgs: [id]);
-      } catch (_) {
-        await txn.delete('pengeluaran', where: 'id_divisi = ?', whereArgs: [id]);
-      }
-      // delete the divisi itself
-      return await txn.delete('divisi', where: 'id = ?', whereArgs: [id]);
-    });
   }
 }

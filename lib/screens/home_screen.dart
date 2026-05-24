@@ -112,7 +112,12 @@ class _HomeScreenState extends State<HomeScreen> {
                     String rawBudget = budgetController.text.replaceAll(RegExp(r'[^0-9]'), '');
                     String tanggal = tanggalController.text.trim();
                     
-                    if (nama.isEmpty || rawBudget.isEmpty || tanggal.isEmpty) return;
+                    if (nama.isEmpty || rawBudget.isEmpty || tanggal.isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Semua kolom harus diisi!'), backgroundColor: Colors.red),
+                      );
+                      return;
+                    }
 
                     await DatabaseHelper.instance.insertAcara({
                       'nama_acara': nama,
