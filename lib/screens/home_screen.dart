@@ -15,6 +15,10 @@ class _HomeScreenState extends State<HomeScreen> {
   List<Map<String, dynamic>> _acaraList = [];
   String _userName = PrefsHelper.userName;
   String _role = PrefsHelper.userRole;
+  
+  // 🔥 UTALISASI STATE BARU UNTUK PREFS 🔥
+  bool _isDarkMode = PrefsHelper.isDarkMode;
+  bool _isBalanceHidden = PrefsHelper.isBalanceHidden;
 
   @override
   void initState() {
@@ -141,8 +145,13 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // 🌓 WARNA ADJUSTMENT UNTUK DARK MODE 🌓
+    final Color backgroundColor = _isDarkMode ? const Color(0xFF121212) : const Color(0xFFF4F7FC);
+    final Color cardColor = _isDarkMode ? const Color(0xFF1E1E1E) : Colors.white;
+    final Color textColor = _isDarkMode ? Colors.white : Colors.black87;
+
     return Scaffold(
-      backgroundColor: const Color(0xFFF4F7FC),
+      backgroundColor: backgroundColor,
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 600),
@@ -151,12 +160,12 @@ class _HomeScreenState extends State<HomeScreen> {
               _buildCustomHeader(),
               Expanded(
                 child: _acaraList.isEmpty 
-                    ? const Center(child: Text('Belum ada acara. Mari buat acara baru!'))
+                    ? Center(child: Text('Belum ada acara. Mari buat acara baru!', style: TextStyle(color: _isDarkMode ? Colors.white60 : Colors.black54)))
                     : ListView.builder(
                         padding: const EdgeInsets.only(top: 24, left: 20, right: 20, bottom: 100),
                         itemCount: _acaraList.length,
                         itemBuilder: (context, index) {
-                          return _buildPremiumEventCard(_acaraList[index]);
+                          return _buildPremiumEventCard(_acaraList[index], cardColor, textColor);
                         },
                       ),
               ),
@@ -176,11 +185,13 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildCustomHeader() {
+    final Color headerColor = _isDarkMode ? const Color(0xFF1F2937) : const Color(0xFF1E3A8A);
+
     return Container(
       padding: const EdgeInsets.only(top: 60, left: 24, right: 24, bottom: 32),
-      decoration: const BoxDecoration(
-        color: Color(0xFF1E3A8A),
-        borderRadius: BorderRadius.only(bottomLeft: Radius.circular(40), bottomRight: Radius.circular(40)),
+      decoration: BoxDecoration(
+        color: headerColor,
+        borderRadius: const BorderRadius.only(bottomLeft: Radius.circular(40), bottomRight: Radius.circular(40)),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -193,31 +204,58 @@ class _HomeScreenState extends State<HomeScreen> {
               Text('Dashboard $_role', style: const TextStyle(fontSize: 14, color: Colors.white70)),
             ],
           ),
-          GestureDetector(
-            onTap: () {
-              String newRole = _role == 'Ketuplak' ? 'Anggota' : 'Ketuplak';
-              PrefsHelper.setUserRole(newRole);
-              setState(() { _role = newRole; });
-              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Switched to $newRole mode')));
-            },
-            child: const CircleAvatar(
-              radius: 24,
-              backgroundColor: Colors.white,
-              child: Icon(Icons.person, color: Color(0xFF1E3A8A), size: 30),
-            ),
+          Row(
+            children: [
+              // 🔥 1. TOMBOL SENSOR SALDO (PREFS KEY 2) 🔥
+              IconButton(
+                icon: Icon(_isBalanceHidden ? Icons.visibility_off_rounded : Icons.visibility_rounded, color: Colors.white, size: 26),
+                onPressed: () async {
+                  bool newHidden = !_isBalanceHidden;
+                  await PrefsHelper.setBalanceHidden(newHidden);
+                  setState(() {
+                    _isBalanceHidden = newHidden;
+                  });
+                },
+              ),
+              // 🌓 2. TOMBOL THEME MODE (PREFS KEY 3) 🌓
+              IconButton(
+                icon: Icon(_isDarkMode ? Icons.light_mode_rounded : Icons.dark_mode_rounded, color: Colors.white, size: 26),
+                onPressed: () async {
+                  bool newMode = !_isDarkMode;
+                  await PrefsHelper.setDarkMode(newMode);
+                  setState(() {
+                    _isDarkMode = newMode;
+                  });
+                },
+              ),
+              const SizedBox(width: 4),
+              GestureDetector(
+                onTap: () {
+                  String newRole = _role == 'Ketuplak' ? 'Anggota' : 'Ketuplak';
+                  PrefsHelper.setUserRole(newRole);
+                  setState(() { _role = newRole; });
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Switched to $newRole mode'), duration: const Duration(seconds: 1)));
+                },
+                child: CircleAvatar(
+                  radius: 24,
+                  backgroundColor: Colors.white,
+                  child: Icon(Icons.person, color: headerColor, size: 30),
+                ),
+              ),
+            ],
           )
         ],
       ),
     );
   }
 
-  Widget _buildPremiumEventCard(Map<String, dynamic> acara) {
+  Widget _buildPremiumEventCard(Map<String, dynamic> acara, Color cardBg, Color textCol) {
     return Container(
       margin: const EdgeInsets.only(bottom: 20),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: cardBg,
         borderRadius: BorderRadius.circular(24),
-        boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10, offset: const Offset(0, 5))],
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: _isDarkMode ? 0.3 : 0.08), blurRadius: 10, offset: const Offset(0, 5))],
       ),
       child: InkWell(
         borderRadius: BorderRadius.circular(24),
@@ -240,7 +278,10 @@ class _HomeScreenState extends State<HomeScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text((acara['tanggal_acara'] as String?) ?? (acara['tanggal'] as String?) ?? '', style: const TextStyle(color: Color(0xFF1E3A8A), fontWeight: FontWeight.bold)),
+                  Text(
+                    (acara['tanggal_acara'] as String?) ?? (acara['tanggal'] as String?) ?? '', 
+                    style: const TextStyle(color: Color(0xFF10B981), fontWeight: FontWeight.bold)
+                  ),
                   if (_role == 'Ketuplak')
                     InkWell(
                       onTap: () async {
@@ -252,9 +293,14 @@ class _HomeScreenState extends State<HomeScreen> {
                 ],
               ),
               const SizedBox(height: 16),
-              Text(acara['nama_acara'], style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+              Text(acara['nama_acara'], style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: textCol)),
               const SizedBox(height: 10),
-              Text(formatRupiah(acara['budget_total']), style: const TextStyle(fontSize: 18, color: Color(0xFF10B981))),
+              
+              // 🔥 IMPLEMENTASI SENSOR BUDGET DI BERANDA 🔥
+              Text(
+                _isBalanceHidden ? 'Rp ••••••••' : formatRupiah(acara['budget_total']), 
+                style: const TextStyle(fontSize: 18, color: Color(0xFF10B981), fontWeight: FontWeight.w600)
+              ),
             ],
           ),
         ),

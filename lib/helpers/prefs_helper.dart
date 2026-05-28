@@ -11,15 +11,15 @@ class PrefsHelper {
   static String get userName => _prefs.getString('user_name') ?? 'Sunghoon';
   static Future<void> setUserName(String value) async => await _prefs.setString('user_name', value);
 
-  // 2. Key: First Time
-  static bool get isFirstTime => _prefs.getBool('is_first_time') ?? true;
-  static Future<void> setFirstTime(bool value) async => await _prefs.setBool('is_first_time', value);
+  // 2. Key: Sensor Saldo (Default: false)
+  static bool get isBalanceHidden => _prefs.getBool('is_balance_hidden') ?? false;
+  static Future<void> setBalanceHidden(bool value) async => await _prefs.setBool('is_balance_hidden', value);
 
   // 3. Key: Theme Mode
   static bool get isDarkMode => _prefs.getBool('theme_mode') ?? false;
   static Future<void> setDarkMode(bool value) async => await _prefs.setBool('theme_mode', value);
 
-  // 4. Key: User Role
+  // 4. Key: User Role (Default: Ketuplak)
   static String get userRole => _prefs.getString('user_role') ?? 'Ketuplak';
   static Future<void> setUserRole(String value) async => await _prefs.setString('user_role', value);
 }
