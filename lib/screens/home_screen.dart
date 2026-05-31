@@ -15,8 +15,6 @@ class _HomeScreenState extends State<HomeScreen> {
   List<Map<String, dynamic>> _acaraList = [];
   String _userName = PrefsHelper.userName;
   String _role = PrefsHelper.userRole;
-  
-  // 🔥 UTALISASI STATE BARU UNTUK PREFS 🔥
   bool _isDarkMode = PrefsHelper.isDarkMode;
   bool _isBalanceHidden = PrefsHelper.isBalanceHidden;
 
@@ -35,6 +33,54 @@ class _HomeScreenState extends State<HomeScreen> {
 
   String formatRupiah(int number) {
     return NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ', decimalDigits: 0).format(number);
+  }
+
+  void _showDeleteConfirmationDialog(int idAcara, String namaAcara) {
+    showDialog(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          backgroundColor: _isDarkMode ? const Color(0xFF1E1E1E) : Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: Text(
+            'Konfirmasi Hapus',
+            style: TextStyle(color: _isDarkMode ? Colors.white : const Color(0xFF1E3A8A), fontWeight: FontWeight.bold),
+          ),
+          content: Text(
+            'Apakah Anda yakin ingin menghapus acara "$namaAcara"? Semua data divisi, tugas, dan pengeluaran di dalamnya akan ikut terhapus permanen.',
+            style: TextStyle(color: _isDarkMode ? Colors.white70 : Colors.black87),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: Text('Batal', style: TextStyle(color: _isDarkMode ? Colors.white60 : Colors.grey[600])),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.redAccent,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              onPressed: () async {
+                Navigator.pop(dialogContext);
+                await DatabaseHelper.instance.deleteAcara(idAcara);
+                _refreshAcaraList();
+                
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Acara "$namaAcara" berhasil dihapus'),
+                      backgroundColor: Colors.redAccent,
+                      duration: const Duration(seconds: 2),
+                    ),
+                  );
+                }
+              },
+              child: const Text('Hapus', style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   void _showAddAcaraBottomSheet() {
@@ -145,7 +191,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // 🌓 WARNA ADJUSTMENT UNTUK DARK MODE 🌓
     final Color backgroundColor = _isDarkMode ? const Color(0xFF121212) : const Color(0xFFF4F7FC);
     final Color cardColor = _isDarkMode ? const Color(0xFF1E1E1E) : Colors.white;
     final Color textColor = _isDarkMode ? Colors.white : Colors.black87;
@@ -206,7 +251,6 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           Row(
             children: [
-              // 🔥 1. TOMBOL SENSOR SALDO (PREFS KEY 2) 🔥
               IconButton(
                 icon: Icon(_isBalanceHidden ? Icons.visibility_off_rounded : Icons.visibility_rounded, color: Colors.white, size: 26),
                 onPressed: () async {
@@ -217,7 +261,6 @@ class _HomeScreenState extends State<HomeScreen> {
                   });
                 },
               ),
-              // 🌓 2. TOMBOL THEME MODE (PREFS KEY 3) 🌓
               IconButton(
                 icon: Icon(_isDarkMode ? Icons.light_mode_rounded : Icons.dark_mode_rounded, color: Colors.white, size: 26),
                 onPressed: () async {
@@ -284,9 +327,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   if (_role == 'Ketuplak')
                     InkWell(
-                      onTap: () async {
-                        await DatabaseHelper.instance.deleteAcara(acara['id']);
-                        _refreshAcaraList();
+                      onTap: () {
+                        _showDeleteConfirmationDialog(acara['id'], acara['nama_acara']);
                       },
                       child: const Icon(Icons.delete, color: Colors.redAccent),
                     )
@@ -295,8 +337,6 @@ class _HomeScreenState extends State<HomeScreen> {
               const SizedBox(height: 16),
               Text(acara['nama_acara'], style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: textCol)),
               const SizedBox(height: 10),
-              
-              // 🔥 IMPLEMENTASI SENSOR BUDGET DI BERANDA 🔥
               Text(
                 _isBalanceHidden ? 'Rp ••••••••' : formatRupiah(acara['budget_total']), 
                 style: const TextStyle(fontSize: 18, color: Color(0xFF10B981), fontWeight: FontWeight.w600)
