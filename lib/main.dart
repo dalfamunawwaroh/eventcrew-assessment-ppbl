@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'helpers/prefs_helper.dart';
 import 'screens/home_screen.dart';
+import 'screens/landing_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -30,7 +31,8 @@ class EventCrewApp extends StatelessWidget {
           secondary: const Color(0xFF10B981),
         ),
       ),
-      home: const HomeScreen(),
+      // Show LandingPage first; users navigate to HomeScreen via button
+      home: const LandingPage(),
     );
   }
 }

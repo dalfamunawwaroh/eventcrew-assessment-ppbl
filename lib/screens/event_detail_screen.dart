@@ -81,10 +81,10 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red.shade400),
             onPressed: () async {
-              await DatabaseHelper.instance.deleteDivisi(div['id']);
+              await DatabaseHelper.instance.deleteDivisi(div['id']); // Hapus dari DB
               if (!dialogContext.mounted) return;
-              Navigator.pop(dialogContext);
-              if (mounted) setState(() {});
+              Navigator.pop(dialogContext); // Tutup dialog
+              if (mounted) setState(() {}); // Refresh tampilan
             },
             child: const Text('Hapus', style: TextStyle(color: Colors.white)),
           ),
@@ -100,6 +100,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
     final Color cardColor = _isDarkMode ? const Color(0xFF1E1E1E) : Colors.white;
     final Color titleColor = _isDarkMode ? Colors.white : const Color(0xFF1E3A8A);
 
+    // PENGATURAN DUA TAB
     return DefaultTabController(
       length: 2,
       child: Scaffold(
@@ -201,7 +202,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
             ? FloatingActionButton.extended(
                 backgroundColor: mint,
                 elevation: 4,
-                onPressed: _showAddDivisiDialog,
+                onPressed: _showAddDivisiDialog, // BISA TAMBAH DIVISI KALAU ROLE NYA KETUPLAK
                 icon: const Icon(Icons.add_rounded, color: Colors.white),
                 label: const Text('Divisi', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
               )
@@ -224,7 +225,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
   }
 
   // =================================================================
-  // TAB 1: DIVISI & TUGAS
+  // TAB 1: DIVISI & TUGAS Tugas per Divisi (CRUD Esa)
   // =================================================================
   Widget _buildDivisiTab() {
     final Color bgCard = _isDarkMode ? const Color(0xFF1E1E1E) : Colors.white;
@@ -290,9 +291,9 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                     future: DatabaseHelper.instance.getTaskProgressByDivisi(div['id']),
                     builder: (context, progressSnapshot) {
                       final progress = progressSnapshot.data ?? {'total': 0, 'done': 0};
-                      final total = progress['total']!;
-                      final done = progress['done']!;
-                      final percent = total == 0 ? 0 : ((done / total) * 100).round();
+                      final total = progress['total']!;   // total tugas = 2
+                      final done = progress['done']!;     // selesai     = 2
+                      final percent = total == 0 ? 0 : ((done / total) * 100).round();  // = 100%
                       final s = (div['status'] as String?) ?? 'Belum Aktif';
 
                       return Padding(
@@ -347,6 +348,8 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                             padding: EdgeInsets.symmetric(vertical: 8.0),
                             child: Text('Daftar Tugas:', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey)),
                           ),
+
+                          // READ TUGAS DIVISI - ESA 
                           FutureBuilder<List<Map<String, dynamic>>>(
                             future: DatabaseHelper.instance.getTasksByDivisi(div['id']),
                             builder: (context, taskSnapshot) {
@@ -354,22 +357,24 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                               final tasks = taskSnapshot.data!;
                               if (tasks.isEmpty) return const Padding(padding: EdgeInsets.only(bottom: 8.0), child: Text('Belum ada tugas.', style: TextStyle(color: Colors.grey, fontStyle: FontStyle.italic)));
 
+                              // Tampilkan setiap tugas sebagai ListTile
                               return Column(
                                 children: tasks.map((task) {
                                   return ListTile(
                                     contentPadding: EdgeInsets.zero,
                                     leading: Checkbox(
                                       activeColor: mint,
-                                      value: task['is_done'] == 1,
+                                      value: task['is_done'] == 1, // 1 = selesai, 0 = belum
                                       onChanged: (bool? value) async {
+                                         // UPDATE status — ESA
                                         await DatabaseHelper.instance.updateTaskStatus(task['id'], value! ? 1 : 0);
-                                        setState(() {});
+                                        setState(() {}); // refresh tampilan
                                       },
                                     ),
                                     title: Text(
                                       task['nama_task'],
                                       style: TextStyle(
-                                        decoration: task['is_done'] == 1 ? TextDecoration.lineThrough : null,
+                                        decoration: task['is_done'] == 1 ? TextDecoration.lineThrough : null, // Coret kalau selesai
                                         color: task['is_done'] == 1 ? Colors.grey : txtColor,
                                         fontWeight: FontWeight.w500,
                                       ),
@@ -377,13 +382,16 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                                     subtitle: task['deadline'] != null && (task['deadline'] as String).isNotEmpty
                                         ? Text('Deadline: ${task['deadline']}', style: TextStyle(fontSize: 11, color: _isDarkMode ? Colors.white60 : Colors.black54))
                                         : null,
+
+                                    // EDIT DAN DELETE TUGAS PER DIVISI (ESA)
                                     trailing: Row(
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
                                         IconButton(
-                                          icon: const Icon(Icons.edit_outlined, size: 20, color: Colors.grey),
-                                          onPressed: () => _showEditTaskDialog(task),
+                                          icon: const Icon(Icons.edit_outlined, size: 20, color: Colors.grey), // ikon pensil abu-abu yang terlihat di gambar
+                                          onPressed: () => _showEditTaskDialog(task), //  membuka dialog edit tugas
                                         ),
+                                        // Tombol Hapus Tugas (DELETE) - ESA
                                         IconButton(
                                           icon: Icon(Icons.delete_outline, size: 20, color: Colors.red.shade400),
                                           onPressed: () async {
@@ -403,8 +411,8 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                                               ),
                                             );
                                             if (confirm == true) {
-                                              await DatabaseHelper.instance.deleteTask(task['id']);
-                                              setState(() {});
+                                              await DatabaseHelper.instance.deleteTask(task['id']); // Hpus dari DB
+                                              setState(() {}); // refresh tampilan
                                             }
                                           },
                                         ),
@@ -424,6 +432,8 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                                   icon: const Icon(Icons.edit, color: Colors.grey, size: 16),
                                   label: const Text('Edit Divisi', style: TextStyle(color: Colors.grey, fontSize: 12)),
                                 ),
+
+                              // CREATE TUGAS PER DIVISI (ESA)
                               TextButton.icon(
                                 onPressed: () => _showAddTaskDialog(div['id'], div['nama_divisi']),
                                 icon: Icon(Icons.add_task, color: _isDarkMode ? mint : navy, size: 18),
@@ -460,15 +470,17 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
         final divisiList = snapshot.data!;
         
         if (divisiList.isEmpty) return _buildPlaceholder('Belum ada divisi & dana.', Icons.account_balance_wallet_outlined);
-
+        // HITUNG TOTAL DANA YANG SUDAH DIALOKASIKAN KE DIVISI (Misal budget 10jt, alokasi 7jt, sisa 3jt)
         int totalDialokasikan = 0;
         for (var div in divisiList) {
           totalDialokasikan += (div['alokasi_budget'] as int);
         }
         int sisaBelumDialokasikan = _budgetAcara - totalDialokasikan;
+        // Misal budget 10jt, alokasi 7jt → sisa 3jt
 
         return Column(
           children: [
+            // KARTU RINGKASAN BUDGET ACARA - READ (ESA)
             Container(
               margin: const EdgeInsets.all(20),
               padding: const EdgeInsets.all(24),
@@ -513,6 +525,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                               crossAxisAlignment: CrossAxisAlignment.end,
                               children: [
                                 const Text('Sisa Dana', style: TextStyle(color: Colors.white70, fontSize: 10)),
+                                // KARTU RINGKASAN SISA DANA (ESA) - MENGHITUNG SISA DANA DARI BUDGET ACARA DAN TOTAL ALLOKASI KE DIVISI
                                 Text(
                                   _isBalanceHidden ? 'Rp ••••••••' : formatRupiah(sisaBelumDialokasikan), 
                                   style: TextStyle(color: sisaBelumDialokasikan < 0 ? Colors.redAccent.shade100 : Colors.greenAccent.shade200, fontSize: 14, fontWeight: FontWeight.bold)
@@ -527,6 +540,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                 ],
               ),
             ),
+            // Rincian Dana per Divisi" — Judul Section
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 4),
               child: Align(
@@ -559,6 +573,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                           decoration: BoxDecoration(color: mint.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(12)),
                           child: Icon(Icons.monetization_on_rounded, color: mint),
                         ),
+                        // Terpakai & Sisa Alokasi (READ)
                         title: Text(div['nama_divisi'], style: TextStyle(fontWeight: FontWeight.bold, color: txtColor)),
                         subtitle: FutureBuilder<int>(
                           future: DatabaseHelper.instance.getTotalPengeluaranByDivisi(div['id']),
@@ -612,6 +627,8 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                                   padding: EdgeInsets.symmetric(vertical: 8.0),
                                   child: Text('Riwayat Pengeluaran:', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey)),
                                 ),
+
+                                // List pengeluaran per divisi (READ)
                                 FutureBuilder<List<Map<String, dynamic>>>(
                                   future: DatabaseHelper.instance.getPengeluaranByDivisi(div['id']),
                                   builder: (context, pengeluaranSnapshot) {
@@ -619,11 +636,12 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                                     final pengeluaranList = pengeluaranSnapshot.data!;
                                     if (pengeluaranList.isEmpty) return const Padding(padding: EdgeInsets.only(bottom: 8.0), child: Text('Belum ada pengeluaran.', style: TextStyle(color: Colors.grey, fontStyle: FontStyle.italic)));
 
+                                     // Read RAB yang sudah di inputkan (Card)
                                     return Column(
                                       children: pengeluaranList.map((p) {
                                         final int jumlah = p['jumlah'] as int;
                                         final int nominal = (p['nominal'] as num).toInt();
-                                        final int total = jumlah * nominal;
+                                        final int total = jumlah * nominal; // Total = qty × harga satuan
 
                                         return Container(
                                           margin: const EdgeInsets.only(bottom: 8),
@@ -637,6 +655,8 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                                               children: [
                                                 Text(_isBalanceHidden ? 'Rp ••••••••' : formatRupiah(total), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.redAccent)),
                                                 if (_role == 'Ketuplak')
+                                                
+                                                // UPDATE & DELETE RAB (ESA) 
                                                   PopupMenuButton<String>(
                                                     icon: const Icon(Icons.more_vert, size: 20),
                                                     onSelected: (value) async {
@@ -673,6 +693,8 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                                     );
                                   },
                                 ),
+
+                                // CREATE RAB (Tambah Pengeluaran per Divisi) - ESA
                                 if (_role == 'Ketuplak')
                                   Align(
                                     alignment: Alignment.centerRight,
@@ -699,7 +721,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
   }
 
   // =================================================================
-  // DIALOG BOXES
+  // DIALOG-DIALOG (Bagian CRUD Esa)
   // =================================================================
   void _showEditAcaraDialog() {
     final namaController = TextEditingController(text: _namaAcaraReal);
@@ -796,10 +818,13 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
       ),
     );
   }
-
+  // DIALOG EDIT/UPDATE TUGAS (ESA)
   void _showEditTaskDialog(Map<String, dynamic> task) {
     final taskController = TextEditingController(text: task['nama_task']);
     final deadlineController = TextEditingController(text: task['deadline'] ?? '');
+     //  field diisi dengan data lama dulu
+
+
     showDialog(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -833,6 +858,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
             style: ElevatedButton.styleFrom(backgroundColor: mint, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
             onPressed: () async {
               if (taskController.text.trim().isNotEmpty) {
+                // TOMBOL SIMPAN UPDATE TUGAS
                 await DatabaseHelper.instance.updateTaskDetail(task['id'], taskController.text.trim(), deadlineController.text.isEmpty ? null : deadlineController.text);
                 if (!dialogContext.mounted) return;
                 Navigator.pop(dialogContext);
@@ -846,6 +872,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
     );
   }
 
+  
   void _showAddDivisiDialog() {
     final nameController = TextEditingController();
     final alokasiController = TextEditingController();
@@ -893,9 +920,10 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
     );
   }
 
+// DIALOG CREATE TUGAS DIVISI (ESA)
   void _showAddTaskDialog(int idDivisi, String namaDivisi) {
-    final taskController = TextEditingController();
-    final deadlineController = TextEditingController();
+    final taskController = TextEditingController(); // Input nama tugas
+    final deadlineController = TextEditingController(); // Input deadline tugas (opsional)
     showDialog(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -927,6 +955,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
             style: ElevatedButton.styleFrom(backgroundColor: mint, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
             onPressed: () async {
               if (taskController.text.trim().isNotEmpty) {
+                // Tombol Tambah Tugas
                 await DatabaseHelper.instance.insertTask({
                   'id_divisi': idDivisi, 'nama_task': taskController.text.trim(), 'is_done': 0, 'status': 'Belum Selesai', 'deadline': deadlineController.text.isEmpty ? null : deadlineController.text,
                 });
@@ -942,6 +971,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
     );
   }
 
+  // DIALOG CREATE PENGELUARAN DIVISI (ESA)
   void _showAddPengeluaranDialog(int idDivisi, String namaDivisi) {
     final tanggalController = TextEditingController(text: DateTime.now().toIso8601String().split('T')[0]);
     final namaBarangController = TextEditingController();
@@ -985,6 +1015,8 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
               if (namaBarangController.text.trim().isNotEmpty && nominalController.text.isNotEmpty && jumlahController.text.isNotEmpty) {
                 int jumlah = int.tryParse(jumlahController.text.replaceAll(RegExp(r'[^0-9]'), '')) ?? 1;
                 int nominal = int.tryParse(nominalController.text.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
+
+                // Simpan pengeluaran baru
                 final berhasil = await DatabaseHelper.instance.insertPengeluaranWithValidasi(
                   divisiId: idDivisi, tanggal: tanggalController.text, namaBarang: namaBarangController.text.trim(), jumlah: jumlah, nominal: nominal,
                 );
@@ -1004,6 +1036,8 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
     );
   }
 
+
+  // DIALOG UPDATE PENGELUARAN RAB/DIVISI (ESA)
   void _showUpdatePengeluaranDialog(Map<String, dynamic> pengeluaran, String namaDivisi) {
     final tanggalController = TextEditingController(text: pengeluaran['tanggal']);
     final namaBarangController = TextEditingController(text: pengeluaran['nama_barang']);
@@ -1049,6 +1083,8 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
               if (namaBarangController.text.trim().isNotEmpty && nominalController.text.isNotEmpty && jumlahController.text.isNotEmpty) {
                 int jumlah = int.tryParse(jumlahController.text.replaceAll(RegExp(r'[^0-9]'), '')) ?? 1;
                 int nominal = int.tryParse(nominalController.text.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
+
+                // Tombol Simpan Update Pengeluaran
                 final berhasil = await DatabaseHelper.instance.updatePengeluaranWithValidasi(
                   id: pengeluaran['id'], divisiId: pengeluaran['divisi_id'], tanggal: tanggalController.text, namaBarang: namaBarangController.text.trim(), jumlah: jumlah, nominal: nominal,
                 );

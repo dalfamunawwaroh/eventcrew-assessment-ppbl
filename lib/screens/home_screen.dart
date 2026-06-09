@@ -14,9 +14,9 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   List<Map<String, dynamic>> _acaraList = [];
   String _userName = PrefsHelper.userName;
-  String _role = PrefsHelper.userRole;
+  String _role = PrefsHelper.userRole; // Deklarasi variabel UNTUK MENYIMPAN STATUS ROLE USER
   bool _isDarkMode = PrefsHelper.isDarkMode;
-  bool _isBalanceHidden = PrefsHelper.isBalanceHidden;
+  bool _isBalanceHidden = PrefsHelper.isBalanceHidden; // Deklarasi variabel SHARED PREFERENCES UNTUK MENYIMPAN STATUS BALANCE HIDDEN
 
   @override
   void initState() {
@@ -218,6 +218,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ),
       ),
+      // CONTOH PENGGUNAAN SHARED PREFERENCES UNTUK MEMBUAT ACARA JIKA ROLE KETUPLAK
       floatingActionButton: _role == 'Ketuplak' 
           ? FloatingActionButton.extended(
               backgroundColor: const Color(0xFF10B981),
@@ -225,7 +226,7 @@ class _HomeScreenState extends State<HomeScreen> {
               icon: const Icon(Icons.add, color: Colors.white),
               label: const Text('Buat Acara', style: TextStyle(color: Colors.white)),
             )
-          : null,
+          : null, // Akan hilang jika role Anggota
     );
   }
 
@@ -246,18 +247,20 @@ class _HomeScreenState extends State<HomeScreen> {
             children: [
               Text('Halo, $_userName', style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: Colors.white)),
               const SizedBox(height: 6),
+              // Teks role di bawah nama
               Text('Dashboard $_role', style: const TextStyle(fontSize: 14, color: Colors.white70)),
             ],
           ),
           Row(
             children: [
+              // PENGGUNAAN TOMBOL MATA UNTUK MENGHIDDEN ATAU MENAMPILKAN SALDO BERDASARKAN STATUS _isBalanceHidden YANG DISIMPAN DI SHARED PREFERENCES
               IconButton(
                 icon: Icon(_isBalanceHidden ? Icons.visibility_off_rounded : Icons.visibility_rounded, color: Colors.white, size: 26),
                 onPressed: () async {
-                  bool newHidden = !_isBalanceHidden;
-                  await PrefsHelper.setBalanceHidden(newHidden);
+                  bool newHidden = !_isBalanceHidden; // balik nilainya: true→false, false→true
+                  await PrefsHelper.setBalanceHidden(newHidden); // simpan ke SharedPreferences
                   setState(() {
-                    _isBalanceHidden = newHidden;
+                    _isBalanceHidden = newHidden; // update tampilan
                   });
                 },
               ),
@@ -272,14 +275,16 @@ class _HomeScreenState extends State<HomeScreen> {
                 },
               ),
               const SizedBox(width: 4),
+              // TOMBOL AVATAR UNTUK SWITCH ROLE USER ANTARA KETUPLAK DAN ANGGOTA, STATUS DISIMPAN DI SHARED PREFERENCES
               GestureDetector(
                 onTap: () {
                   String newRole = _role == 'Ketuplak' ? 'Anggota' : 'Ketuplak';
-                  PrefsHelper.setUserRole(newRole);
-                  setState(() { _role = newRole; });
+                  PrefsHelper.setUserRole(newRole); // simpan ke SharedPreferences
+                  setState(() { _role = newRole; }); // update tampilan
+                   // Snackbar "Switched to Anggota mode" y
                   ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Switched to $newRole mode'), duration: const Duration(seconds: 1)));
                 },
-                child: CircleAvatar(
+                child: CircleAvatar(  // tombol avatar bulat putih
                   radius: 24,
                   backgroundColor: Colors.white,
                   child: Icon(Icons.person, color: headerColor, size: 30),
@@ -325,6 +330,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     (acara['tanggal_acara'] as String?) ?? (acara['tanggal'] as String?) ?? '', 
                     style: const TextStyle(color: Color(0xFF10B981), fontWeight: FontWeight.bold)
                   ),
+                  // Tombol Hapus Divisi — hanya muncul untuk Ketuplak
                   if (_role == 'Ketuplak')
                     InkWell(
                       onTap: () {
@@ -336,7 +342,8 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               const SizedBox(height: 16),
               Text(acara['nama_acara'], style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: textCol)),
-              const SizedBox(height: 10),
+              const SizedBox(height: 10), 
+              // Tempat harga ditampilkan/disensor — di card acara(_isBalanceHidden) 
               Text(
                 _isBalanceHidden ? 'Rp ••••••••' : formatRupiah(acara['budget_total']), 
                 style: const TextStyle(fontSize: 18, color: Color(0xFF10B981), fontWeight: FontWeight.w600)
