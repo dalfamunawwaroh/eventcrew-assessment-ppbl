@@ -18,8 +18,8 @@ class LandingPage extends StatelessWidget {
     
     // Color palette
     final primaryBlue = const Color(0xFF1E3A8A);
+    final accentMint = const Color(0xFF06B6D4);
     final accentGreen = const Color(0xFF10B981);
-    final accentPurple = const Color(0xFF9B5CFF);
 
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
@@ -35,10 +35,12 @@ class LandingPage extends StatelessWidget {
                   gradient: LinearGradient(
                     colors: [
                       primaryBlue,
-                      accentPurple.withOpacity(0.8),
+                      accentMint.withOpacity(0.9),
+                      accentGreen.withOpacity(0.85),
                     ],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
+                    stops: [0.0, 0.6, 1.0],
                   ),
                 ),
                 child: Column(
@@ -137,7 +139,7 @@ class LandingPage extends StatelessWidget {
                             },
                             style: OutlinedButton.styleFrom(
                               foregroundColor: Colors.white,
-                              side: BorderSide(color: Colors.white.withOpacity(0.5), width: 1.5),
+                              side: BorderSide(color: accentMint.withOpacity(0.35), width: 1.5),
                               padding: const EdgeInsets.symmetric(vertical: 12),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(10),
@@ -180,7 +182,7 @@ class LandingPage extends StatelessWidget {
                       icon: Icons.calendar_today_outlined,
                       title: 'Event Planning',
                       subtitle: 'Create and schedule events easily',
-                      color: accentPurple,
+                      color: accentMint,
                       isDark: isDark,
                     ),
                     const SizedBox(height: 12),
@@ -188,7 +190,7 @@ class LandingPage extends StatelessWidget {
                       icon: Icons.checklist_outlined,
                       title: 'Task Tracking',
                       subtitle: 'Assign tasks and monitor progress',
-                      color: const Color(0xFF3B82F6),
+                      color: accentGreen,
                       isDark: isDark,
                     ),
                   ],
@@ -202,7 +204,7 @@ class LandingPage extends StatelessWidget {
                 margin: const EdgeInsets.symmetric(horizontal: 20.0),
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
-                  color: (isDark ? Colors.white12 : Colors.blue.shade50),
+                  color: (isDark ? Colors.white12 : const Color(0xFFE6FFFA)),
                   borderRadius: BorderRadius.circular(14),
                   border: Border.all(
                     color: primaryBlue.withOpacity(0.2),
