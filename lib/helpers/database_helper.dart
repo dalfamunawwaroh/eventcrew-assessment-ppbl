@@ -103,7 +103,26 @@ class DatabaseHelper {
 
   Future<int> insertAcara(Map<String, dynamic> row) async {
     final db = await instance.database;
-    return await db.insert('acara', row);
+    
+    // Kita gunakan transaksi agar pembuatan acara dan pembentukan role ketuplak aman (atomik)
+    return await db.transaction<int>((txn) async {
+      // 1. Masukkan data acara baru ke tabel acara
+      int idAcaraBaru = await txn.insert('acara', row);
+      
+      // 2. Ambil nama user aktif saat ini dari Shared Preferences
+      String namaPembuat = PrefsHelper.userName;
+
+      // 3. Otomatis buatkan 1 divisi khusus bernama "Inti / Ketua" 
+      // yang mengunci nama pembuat tersebut sebagai penanggung jawab utama (Ketuplak)
+      await txn.insert('divisi', {
+        'id_acara': idAcaraBaru,
+        'nama_divisi': 'Inti (Ketuplak: $namaPembuat)',
+        'alokasi_budget': 0, // Belum dialokasikan budget
+        'status': 'Belum Aktif'
+      });
+
+      return idAcaraBaru;
+    });
   }
 
   Future<List<Map<String, dynamic>>> getSemuaAcara() async {

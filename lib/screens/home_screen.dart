@@ -12,23 +12,42 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  // Palet Warna Desain Premium (Bebas Error)
+  final Color navyDark = const Color(0xFF0F172A);
+  final Color navyPrimary = const Color(0xFF1E3A8A);
+  final Color electricBlue = const Color(0xFF2563EB);
+  final Color mintGreen = const Color(0xFF10B981);
+  final Color softIce = const Color(0xFFEEF2F6);
+
   List<Map<String, dynamic>> _acaraList = [];
-  String _userName = PrefsHelper.userName;
+  late final String _userName; // Diubah ke final untuk memperbaiki linter warning
   String _role = PrefsHelper.userRole;
   bool _isDarkMode = PrefsHelper.isDarkMode;
   bool _isBalanceHidden = PrefsHelper.isBalanceHidden;
 
+  int _grandTotalBudget = 0;
+
   @override
   void initState() {
     super.initState();
+    _userName = PrefsHelper.userName;
     _refreshAcaraList();
   }
 
   void _refreshAcaraList() async {
     final data = await DatabaseHelper.instance.getSemuaAcara();
-    setState(() {
-      _acaraList = data;
-    });
+    
+    int totalBudget = 0;
+    for (var acara in data) {
+      totalBudget += (acara['budget_total'] as int? ?? 0);
+    }
+
+    if (mounted) {
+      setState(() {
+        _acaraList = data;
+        _grandTotalBudget = totalBudget;
+      });
+    }
   }
 
   String formatRupiah(int number) {
@@ -40,25 +59,26 @@ class _HomeScreenState extends State<HomeScreen> {
       context: context,
       builder: (BuildContext dialogContext) {
         return AlertDialog(
-          backgroundColor: _isDarkMode ? const Color(0xFF1E1E1E) : Colors.white,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          backgroundColor: _isDarkMode ? const Color(0xFF1E293B) : Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
           title: Text(
-            'Konfirmasi Hapus',
-            style: TextStyle(color: _isDarkMode ? Colors.white : const Color(0xFF1E3A8A), fontWeight: FontWeight.bold),
+            'Hapus Acara?',
+            style: TextStyle(color: _isDarkMode ? Colors.white : navyPrimary, fontWeight: FontWeight.w900, letterSpacing: -0.5),
           ),
           content: Text(
-            'Apakah Anda yakin ingin menghapus acara "$namaAcara"? Semua data divisi, tugas, dan pengeluaran di dalamnya akan ikut terhapus permanen.',
-            style: TextStyle(color: _isDarkMode ? Colors.white70 : Colors.black87),
+            'Tindakan ini permanen. Semua data divisi, tugas, dan kuitansi di dalam "$namaAcara" akan dihapus bersih.',
+            style: TextStyle(color: _isDarkMode ? Colors.blueGrey.shade300 : Colors.grey.shade600, fontSize: 14),
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(dialogContext),
-              child: Text('Batal', style: TextStyle(color: _isDarkMode ? Colors.white60 : Colors.grey[600])),
+              child: Text('Batal', style: TextStyle(color: Colors.grey.shade500, fontWeight: FontWeight.bold)),
             ),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.redAccent,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                elevation: 0,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
               ),
               onPressed: () async {
                 Navigator.pop(dialogContext);
@@ -68,14 +88,15 @@ class _HomeScreenState extends State<HomeScreen> {
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                      content: Text('Acara "$namaAcara" berhasil dihapus'),
+                      content: Text('"$namaAcara" berhasil dihapus'),
                       backgroundColor: Colors.redAccent,
-                      duration: const Duration(seconds: 2),
+                      behavior: SnackBarBehavior.floating,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     ),
                   );
                 }
               },
-              child: const Text('Hapus', style: TextStyle(color: Colors.white)),
+              child: const Text('Ya, Hapus', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
             ),
           ],
         );
@@ -92,53 +113,49 @@ class _HomeScreenState extends State<HomeScreen> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) {
+      builder: (bottomSheetContext) { // FIX: Menggunakan context terpisah untuk form modal sheet
+        final Color formBg = _isDarkMode ? const Color(0xFF1E293B) : Colors.white;
+        final Color textCol = _isDarkMode ? Colors.white : navyDark;
+
         return Container(
           padding: EdgeInsets.only(
-            bottom: MediaQuery.of(context).viewInsets.bottom + 24,
-            left: 24, right: 24, top: 32,
+            bottom: MediaQuery.of(bottomSheetContext).viewInsets.bottom + 28,
+            left: 28, right: 28, top: 32,
           ),
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+          decoration: BoxDecoration(
+            color: formBg,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(36)),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('Buat Acara Baru', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFF1E3A8A))),
+              Text(
+                'Buat Acara Baru ✨', 
+                style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: textCol, letterSpacing: -0.5)
+              ),
               const SizedBox(height: 24),
-              TextField(
-                controller: namaController,
-                decoration: InputDecoration(
-                  labelText: 'Nama Acara',
-                  prefixIcon: const Icon(Icons.event_note),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
-                ),
-              ),
+              _buildFormTextField(controller: namaController, label: 'Nama Acara/Project', icon: Icons.event_note_rounded),
               const SizedBox(height: 16),
-              TextField(
-                controller: budgetController,
-                keyboardType: TextInputType.number,
-                decoration: InputDecoration(
-                  labelText: 'Target Budget',
-                  prefixIcon: const Icon(Icons.account_balance_wallet),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
-                ),
-              ),
+              _buildFormTextField(controller: budgetController, label: 'Target Anggaran (RAB)', icon: Icons.account_balance_wallet_rounded, isNumber: true),
               const SizedBox(height: 16),
+              
               TextField(
                 controller: tanggalController,
                 readOnly: true,
+                style: TextStyle(color: textCol, fontWeight: FontWeight.bold),
                 decoration: InputDecoration(
-                  labelText: 'Tanggal Pelaksanaan Acara',
-                  prefixIcon: const Icon(Icons.calendar_today),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
+                  labelText: 'Tanggal Pelaksanaan',
+                  labelStyle: TextStyle(color: Colors.blueGrey.shade300, fontSize: 13),
+                  prefixIcon: Icon(Icons.calendar_today_rounded, color: _isDarkMode ? mintGreen : navyPrimary),
+                  filled: true,
+                  fillColor: _isDarkMode ? navyDark : const Color(0xFFF8FAFC),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
                 ),
                 onTap: () async {
                   final now = DateTime.now();
                   final picked = await showDatePicker(
-                    context: context,
+                    context: bottomSheetContext,
                     initialDate: now,
                     firstDate: now,
                     lastDate: DateTime(now.year + 5),
@@ -149,12 +166,18 @@ class _HomeScreenState extends State<HomeScreen> {
                 },
               ),
               const SizedBox(height: 32),
-              SizedBox(
+              
+              Container(
                 width: double.infinity,
-                height: 56,
+                height: 54,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(16),
+                  gradient: LinearGradient(colors: _isDarkMode ? [mintGreen, const Color(0xFF059669)] : [electricBlue, navyPrimary]),
+                ),
                 child: ElevatedButton(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF10B981),
+                    backgroundColor: Colors.transparent, 
+                    shadowColor: Colors.transparent,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                   ),
                   onPressed: () async {
@@ -163,8 +186,8 @@ class _HomeScreenState extends State<HomeScreen> {
                     String tanggal = tanggalController.text.trim();
                     
                     if (nama.isEmpty || rawBudget.isEmpty || tanggal.isEmpty) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Semua kolom harus diisi!'), backgroundColor: Colors.red),
+                      ScaffoldMessenger.of(bottomSheetContext).showSnackBar(
+                        const SnackBar(content: Text('Semua kolom wajib diisi!'), backgroundColor: Colors.redAccent),
                       );
                       return;
                     }
@@ -176,12 +199,13 @@ class _HomeScreenState extends State<HomeScreen> {
                     });
 
                     _refreshAcaraList();
-                    if (mounted) Navigator.pop(context);
+                    if (bottomSheetContext.mounted) { // FIX: Menggunakan context aman asinkronus khusus sheet
+                      Navigator.pop(bottomSheetContext);
+                    }
                   },
-                  child: const Text('Simpan Acara', style: TextStyle(fontSize: 18, color: Colors.white)),
+                  child: const Text('Simpan & Luncurkan', style: TextStyle(fontSize: 16, color: Colors.white, fontWeight: FontWeight.bold)),
                 ),
               ),
-              const SizedBox(height: 16),
             ],
           ),
         );
@@ -189,116 +213,209 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  Widget _buildFormTextField({required TextEditingController controller, required String label, required IconData icon, bool isNumber = false}) {
+    return TextField(
+      controller: controller,
+      keyboardType: isNumber ? TextInputType.number : TextInputType.text,
+      style: TextStyle(color: _isDarkMode ? Colors.white : navyDark, fontWeight: FontWeight.bold),
+      decoration: InputDecoration(
+        labelText: label,
+        labelStyle: TextStyle(color: Colors.blueGrey.shade300, fontSize: 13),
+        prefixIcon: Icon(icon, color: _isDarkMode ? mintGreen : navyPrimary),
+        filled: true,
+        fillColor: _isDarkMode ? navyDark : const Color(0xFFF8FAFC),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final Color backgroundColor = _isDarkMode ? const Color(0xFF121212) : const Color(0xFFF4F7FC);
-    final Color cardColor = _isDarkMode ? const Color(0xFF1E1E1E) : Colors.white;
-    final Color textColor = _isDarkMode ? Colors.white : Colors.black87;
+    final Color backgroundColor = _isDarkMode ? navyDark : softIce;
+    final Color cardColor = _isDarkMode ? const Color(0xFF1E293B) : Colors.white;
+    final Color textColor = _isDarkMode ? Colors.white : navyDark;
 
     return Scaffold(
       backgroundColor: backgroundColor,
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 600),
-          child: Column(
-            children: [
-              _buildCustomHeader(),
-              Expanded(
-                child: _acaraList.isEmpty 
-                    ? Center(child: Text('Belum ada acara. Mari buat acara baru!', style: TextStyle(color: _isDarkMode ? Colors.white60 : Colors.black54)))
-                    : ListView.builder(
-                        padding: const EdgeInsets.only(top: 24, left: 20, right: 20, bottom: 100),
-                        itemCount: _acaraList.length,
-                        itemBuilder: (context, index) {
-                          return _buildPremiumEventCard(_acaraList[index], cardColor, textColor);
-                        },
-                      ),
-              ),
-            ],
+      body: Column(
+        children: [
+          _buildCustomHeader(),
+          Expanded(
+            child: _acaraList.isEmpty 
+                ? Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.layers_clear_outlined, size: 64, color: Colors.blueGrey.shade300),
+                        const SizedBox(height: 12),
+                        Text('Belum ada acara aktif.', style: TextStyle(color: Colors.blueGrey.shade300, fontWeight: FontWeight.bold)),
+                      ],
+                    ),
+                  )
+                : ListView.builder(
+                    padding: const EdgeInsets.only(top: 12, left: 20, right: 20, bottom: 100),
+                    physics: const BouncingScrollPhysics(),
+                    itemCount: _acaraList.length,
+                    itemBuilder: (context, index) {
+                      return _buildPremiumEventCard(_acaraList[index], cardColor, textColor);
+                    },
+                  ),
           ),
+        ],
+      ),
+      // KODE BARU: Semua user tanpa terkecuali bisa melihat tombol buat acara ini
+      floatingActionButton: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(20),
+          gradient: LinearGradient(colors: _isDarkMode ? [mintGreen, const Color(0xFF059669)] : [electricBlue, navyPrimary]),
+          boxShadow: [
+            BoxShadow(color: (_isDarkMode ? mintGreen : electricBlue).withValues(alpha: 0.3), blurRadius: 12, offset: const Offset(0, 6))
+          ],
+        ),
+        child: FloatingActionButton.extended(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          focusElevation: 0,
+          highlightElevation: 0,
+          onPressed: _showAddAcaraBottomSheet,
+          icon: const Icon(Icons.add_rounded, color: Colors.white),
+          label: const Text('Buat Acara Baru', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
         ),
       ),
-      floatingActionButton: _role == 'Ketuplak' 
-          ? FloatingActionButton.extended(
-              backgroundColor: const Color(0xFF10B981),
-              onPressed: _showAddAcaraBottomSheet,
-              icon: const Icon(Icons.add, color: Colors.white),
-              label: const Text('Buat Acara', style: TextStyle(color: Colors.white)),
-            )
-          : null,
     );
   }
 
   Widget _buildCustomHeader() {
-    final Color headerColor = _isDarkMode ? const Color(0xFF1F2937) : const Color(0xFF1E3A8A);
+    final Color headerColor = _isDarkMode ? const Color(0xFF1E293B) : navyPrimary;
 
     return Container(
       padding: const EdgeInsets.only(top: 60, left: 24, right: 24, bottom: 32),
       decoration: BoxDecoration(
         color: headerColor,
         borderRadius: const BorderRadius.only(bottomLeft: Radius.circular(40), bottomRight: Radius.circular(40)),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withValues(alpha: 0.08), blurRadius: 20, offset: const Offset(0, 10))
+        ],
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      child: Column(
         children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('Halo, $_userName', style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: Colors.white)),
-              const SizedBox(height: 6),
-              Text('Dashboard $_role', style: const TextStyle(fontSize: 14, color: Colors.white70)),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Halo, $_userName 👋', style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: -0.5)),
+                  const SizedBox(height: 4),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(12)),
+                    child: Text('Workspace $_role', style: const TextStyle(fontSize: 11, color: Colors.white, fontWeight: FontWeight.bold)),
+                  ),
+                ],
+              ),
+              Row(
+                children: [
+                  _headerIconButton(
+                    icon: _isBalanceHidden ? Icons.visibility_off_rounded : Icons.visibility_rounded,
+                    onTap: () async {
+                      bool newHidden = !_isBalanceHidden;
+                      await PrefsHelper.setBalanceHidden(newHidden);
+                      setState(() => _isBalanceHidden = newHidden);
+                    },
+                  ),
+                  const SizedBox(width: 8),
+                  _headerIconButton(
+                    icon: _isDarkMode ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
+                    onTap: () async {
+                      bool newMode = !_isDarkMode;
+                      await PrefsHelper.setDarkMode(newMode);
+                      setState(() => _isDarkMode = newMode);
+                    },
+                  ),
+                  const SizedBox(width: 12),
+                  GestureDetector(
+                    onTap: () {
+                      String newRole = _role == 'Ketuplak' ? 'Anggota' : 'Ketuplak';
+                      PrefsHelper.setUserRole(newRole);
+                      setState(() => _role = newRole);
+                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Switched to $newRole mode'), duration: const Duration(seconds: 1)));
+                    },
+                    child: CircleAvatar(
+                      radius: 22,
+                      backgroundColor: Colors.white.withValues(alpha: 0.2),
+                      child: const Icon(Icons.person_rounded, color: Colors.white, size: 24), // FIX: Menggunakan ikon default valid
+                    ),
+                  ),
+                ],
+              )
             ],
           ),
-          Row(
-            children: [
-              IconButton(
-                icon: Icon(_isBalanceHidden ? Icons.visibility_off_rounded : Icons.visibility_rounded, color: Colors.white, size: 26),
-                onPressed: () async {
-                  bool newHidden = !_isBalanceHidden;
-                  await PrefsHelper.setBalanceHidden(newHidden);
-                  setState(() {
-                    _isBalanceHidden = newHidden;
-                  });
-                },
+          const SizedBox(height: 28),
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(24),
+              gradient: LinearGradient(
+                colors: _isDarkMode ? [const Color(0xFF334155), const Color(0xFF1E293B)] : [electricBlue, const Color(0xFF1D4ED8)],
               ),
-              IconButton(
-                icon: Icon(_isDarkMode ? Icons.light_mode_rounded : Icons.dark_mode_rounded, color: Colors.white, size: 26),
-                onPressed: () async {
-                  bool newMode = !_isDarkMode;
-                  await PrefsHelper.setDarkMode(newMode);
-                  setState(() {
-                    _isDarkMode = newMode;
-                  });
-                },
-              ),
-              const SizedBox(width: 4),
-              GestureDetector(
-                onTap: () {
-                  String newRole = _role == 'Ketuplak' ? 'Anggota' : 'Ketuplak';
-                  PrefsHelper.setUserRole(newRole);
-                  setState(() { _role = newRole; });
-                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Switched to $newRole mode'), duration: const Duration(seconds: 1)));
-                },
-                child: CircleAvatar(
-                  radius: 24,
-                  backgroundColor: Colors.white,
-                  child: Icon(Icons.person, color: headerColor, size: 30),
+              boxShadow: [
+                BoxShadow(color: Colors.black.withValues(alpha: 0.15), blurRadius: 16, offset: const Offset(0, 8))
+              ]
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.2), shape: BoxShape.circle),
+                  child: const Icon(Icons.account_balance_rounded, color: Colors.white, size: 28),
                 ),
-              ),
-            ],
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('Total Kelola Anggaran Proyek', style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w500)),
+                      const SizedBox(height: 2),
+                      Text(
+                        _isBalanceHidden ? 'Rp ••••••••' : formatRupiah(_grandTotalBudget),
+                        style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w900, letterSpacing: -0.5),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           )
         ],
       ),
     );
   }
 
+  Widget _headerIconButton({required IconData icon, required VoidCallback onTap}) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(12)),
+        child: Icon(icon, color: Colors.white, size: 22),
+      ),
+    );
+  }
+
   Widget _buildPremiumEventCard(Map<String, dynamic> acara, Color cardBg, Color textCol) {
+    String statusProject = (acara['status'] as String?) ?? 'Persiapan';
+
     return Container(
-      margin: const EdgeInsets.only(bottom: 20),
+      margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
         color: cardBg,
         borderRadius: BorderRadius.circular(24),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: _isDarkMode ? 0.3 : 0.08), blurRadius: 10, offset: const Offset(0, 5))],
+        border: Border.all(color: _isDarkMode ? Colors.blueGrey.shade800 : Colors.white, width: 1),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withValues(alpha: _isDarkMode ? 0.3 : 0.03), blurRadius: 14, offset: const Offset(0, 6))
+        ],
       ),
       child: InkWell(
         borderRadius: BorderRadius.circular(24),
@@ -306,10 +423,7 @@ class _HomeScreenState extends State<HomeScreen> {
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (context) => EventDetailScreen(
-                idAcara: acara['id'],
-                namaAcara: acara['nama_acara'],
-              ),
+              builder: (context) => EventDetailScreen(idAcara: acara['id'], namaAcara: acara['nama_acara']),
             ),
           ).then((_) => _refreshAcaraList());
         },
@@ -321,26 +435,62 @@ class _HomeScreenState extends State<HomeScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    (acara['tanggal_acara'] as String?) ?? (acara['tanggal'] as String?) ?? '', 
-                    style: const TextStyle(color: Color(0xFF10B981), fontWeight: FontWeight.bold)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: (statusProject == 'Selesai' ? mintGreen : electricBlue).withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      statusProject,
+                      style: TextStyle(
+                        color: statusProject == 'Selesai' ? mintGreen : electricBlue, 
+                        fontSize: 11, 
+                        fontWeight: FontWeight.bold
+                      ),
+                    ),
                   ),
                   if (_role == 'Ketuplak')
-                    InkWell(
-                      onTap: () {
-                        _showDeleteConfirmationDialog(acara['id'], acara['nama_acara']);
-                      },
-                      child: const Icon(Icons.delete, color: Colors.redAccent),
+                    IconButton(
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                      icon: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent, size: 22),
+                      onPressed: () => _showDeleteConfirmationDialog(acara['id'], acara['nama_acara']),
                     )
                 ],
               ),
-              const SizedBox(height: 16),
-              Text(acara['nama_acara'], style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: textCol)),
-              const SizedBox(height: 10),
+              const SizedBox(height: 14),
               Text(
-                _isBalanceHidden ? 'Rp ••••••••' : formatRupiah(acara['budget_total']), 
-                style: const TextStyle(fontSize: 18, color: Color(0xFF10B981), fontWeight: FontWeight.w600)
+                acara['nama_acara'], 
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: textCol, letterSpacing: -0.5)
               ),
+              const SizedBox(height: 12),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Alokasi RAB', style: TextStyle(fontSize: 11, color: Colors.blueGrey.shade300, fontWeight: FontWeight.bold)), // FIX: Properti diganti ke fontSize
+                      const SizedBox(height: 2),
+                      Text(
+                        _isBalanceHidden ? 'Rp ••••••••' : formatRupiah(acara['budget_total']), 
+                        style: TextStyle(fontSize: 15, color: _isDarkMode ? mintGreen : navyPrimary, fontWeight: FontWeight.w900) // FIX: Mengganti .extrabold ke .w900
+                      ),
+                    ],
+                  ),
+                  Row(
+                    children: [
+                      Icon(Icons.calendar_month_rounded, size: 14, color: Colors.blueGrey.shade300),
+                      const SizedBox(width: 4),
+                      Text(
+                        (acara['tanggal_acara'] as String?) ?? '',
+                        style: TextStyle(fontSize: 12, color: Colors.blueGrey.shade300, fontWeight: FontWeight.w600),
+                      ),
+                    ],
+                  )
+                ],
+              )
             ],
           ),
         ),
