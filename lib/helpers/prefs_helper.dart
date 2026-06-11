@@ -19,8 +19,8 @@ class PrefsHelper {
   static bool get isDarkMode => _prefs.getBool('theme_mode') ?? false;
   static Future<void> setDarkMode(bool value) async => await _prefs.setBool('theme_mode', value);
 
-  // 4. Key: User Role (Default: Ketuplak)
-  static String get userRole => _prefs.getString('user_role') ?? 'Ketuplak';
+  // 4. Key: User Role (Default: General)
+  static String get userRole => _prefs.getString('user_role') ?? 'General';
   static Future<void> setUserRole(String value) async => await _prefs.setString('user_role', value);
 
   // 5. Key: User Profile Photo Path

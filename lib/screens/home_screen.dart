@@ -25,14 +25,10 @@ class _HomeScreenState extends State<HomeScreen> {
   late final String _userName; 
   String _role = PrefsHelper.userRole;
   bool _isDarkMode = PrefsHelper.isDarkMode;
-<<<<<<< HEAD
   bool _isBalanceHidden = PrefsHelper.isBalanceHidden; // Deklarasi variabel SHARED PREFERENCES UNTUK MENYIMPAN STATUS BALANCE HIDDEN
   String? _profilePhotoPath = PrefsHelper.userProfilePhoto.isEmpty ? null : PrefsHelper.userProfilePhoto; // Foto profil pengguna
-=======
-  bool _isBalanceHidden = PrefsHelper.isBalanceHidden;
 
   int _grandTotalBudget = 0;
->>>>>>> d51ec03108ee0576267d3af45dd765f821fd95bd
 
   @override
   void initState() {
@@ -205,6 +201,14 @@ class _HomeScreenState extends State<HomeScreen> {
                       'budget_total': int.parse(rawBudget),
                     });
 
+                    // Set otomatis menjadi Ketuplak karena membuat acara
+                    await PrefsHelper.setUserRole('Ketuplak');
+                    if (mounted) {
+                      setState(() {
+                        _role = 'Ketuplak';
+                      });
+                    }
+
                     _refreshAcaraList();
                     if (bottomSheetContext.mounted) { 
                       Navigator.pop(bottomSheetContext);
@@ -296,84 +300,9 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       child: Column(
         children: [
-<<<<<<< HEAD
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Halo, $_userName',
-                  style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: Colors.white),
-                  overflow: TextOverflow.ellipsis,
-                  maxLines: 1,
-                ),
-                const SizedBox(height: 6),
-                // Teks role di bawah nama
-                Text(
-                  'Dashboard $_role',
-                  style: const TextStyle(fontSize: 14, color: Colors.white70),
-                  overflow: TextOverflow.ellipsis,
-                  maxLines: 1,
-                ),
-              ],
-            ),
-          ),
-=======
->>>>>>> d51ec03108ee0576267d3af45dd765f821fd95bd
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-<<<<<<< HEAD
-              // PENGGUNAAN TOMBOL MATA UNTUK MENGHIDDEN ATAU MENAMPILKAN SALDO BERDASARKAN STATUS _isBalanceHidden YANG DISIMPAN DI SHARED PREFERENCES
-              IconButton(
-                icon: Icon(_isBalanceHidden ? Icons.visibility_off_rounded : Icons.visibility_rounded, color: Colors.white, size: 26),
-                onPressed: () async {
-                  bool newHidden = !_isBalanceHidden; // balik nilainya: true→false, false→true
-                  await PrefsHelper.setBalanceHidden(newHidden); // simpan ke SharedPreferences
-                  setState(() {
-                    _isBalanceHidden = newHidden; // update tampilan
-                  });
-                },
-              ),
-              IconButton(
-                icon: Icon(_isDarkMode ? Icons.light_mode_rounded : Icons.dark_mode_rounded, color: Colors.white, size: 26),
-                onPressed: () async {
-                  bool newMode = !_isDarkMode;
-                  await PrefsHelper.setDarkMode(newMode);
-                  setState(() {
-                    _isDarkMode = newMode;
-                  });
-                },
-              ),
-              const SizedBox(width: 4),
-              // TOMBOL AVATAR UNTUK MEMBUKA PROFIL PENGGUNA
-              GestureDetector(
-                onTap: () {
-                  /// Navigasi ke ProfilePage saat ikon profil ditekan
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => const ProfilePage()),
-                  ).then((_) {
-                    /// Ketika kembali dari ProfilePage, refresh data dari SharedPreferences
-                    setState(() {
-                      _userName = PrefsHelper.userName;
-                      _role = PrefsHelper.userRole;
-                      // Refresh foto profil
-                      final photo = PrefsHelper.userProfilePhoto;
-                      _profilePhotoPath = photo.isEmpty ? null : photo;
-                    });
-                  });
-                },
-                child: CircleAvatar(
-                  radius: 24,
-                  backgroundColor: Colors.white,
-                  backgroundImage: _profilePhotoPath != null
-                      ? FileImage(File(_profilePhotoPath!)) as ImageProvider
-                      : null,
-                  child: _profilePhotoPath == null
-                      ? Icon(Icons.person, color: headerColor, size: 30)
-                      : null,
-=======
               // 🔥 FIX OVERFLOW: Nama panjang dibungkus Expanded agar aman dipotong pakai titik-titik (ellipsis)
               Expanded(
                 child: Column(
@@ -392,7 +321,6 @@ class _HomeScreenState extends State<HomeScreen> {
                       child: Text('Workspace $_role', style: const TextStyle(fontSize: 11, color: Colors.white, fontWeight: FontWeight.bold)),
                     ),
                   ],
->>>>>>> d51ec03108ee0576267d3af45dd765f821fd95bd
                 ),
               ),
               const SizedBox(width: 16),
@@ -418,15 +346,27 @@ class _HomeScreenState extends State<HomeScreen> {
                   const SizedBox(width: 12),
                   GestureDetector(
                     onTap: () {
-                      String newRole = _role == 'Ketuplak' ? 'Anggota' : 'Ketuplak';
-                      PrefsHelper.setUserRole(newRole);
-                      setState(() => _role = newRole);
-                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Switched to $newRole mode'), duration: const Duration(seconds: 1)));
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => const ProfilePage()),
+                      ).then((_) {
+                        setState(() {
+                          _userName = PrefsHelper.userName;
+                          _role = PrefsHelper.userRole;
+                          final photo = PrefsHelper.userProfilePhoto;
+                          _profilePhotoPath = photo.isEmpty ? null : photo;
+                        });
+                      });
                     },
                     child: CircleAvatar(
                       radius: 22,
                       backgroundColor: Colors.white.withValues(alpha: 0.2),
-                      child: const Icon(Icons.person_rounded, color: Colors.white, size: 24),
+                      backgroundImage: _profilePhotoPath != null
+                          ? FileImage(File(_profilePhotoPath!)) as ImageProvider
+                          : null,
+                      child: _profilePhotoPath == null
+                          ? const Icon(Icons.person_rounded, color: Colors.white, size: 24)
+                          : null,
                     ),
                   ),
                 ],

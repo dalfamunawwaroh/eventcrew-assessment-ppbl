@@ -44,7 +44,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
     bool ketuplakFound = false;
     
     for (var d in divs) {
-      if (d['nama_divisi'].toString().contains(currentUser)) {
+      if (d['nama_divisi'].toString().startsWith('Inti (Ketuplak:') && d['nama_divisi'].toString().contains(currentUser)) {
         ketuplakFound = true;
         break;
       }
