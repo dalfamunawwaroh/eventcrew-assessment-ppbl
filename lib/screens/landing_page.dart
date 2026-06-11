@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'home_screen.dart';
+import 'auth_screen.dart'; 
 
 /// Landing Page / Welcome Screen for EventCrew
 ///
@@ -7,7 +7,7 @@ import 'home_screen.dart';
 /// - Fully responsive with no overflow issues
 /// - Theme-aware: respects app's Light/Dark mode
 /// - This file is standalone — it does not modify any other files.
-
+/// 
 class LandingPage extends StatelessWidget {
   const LandingPage({Key? key}) : super(key: key);
 
@@ -16,7 +16,7 @@ class LandingPage extends StatelessWidget {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     
-    // Color palette
+    // Palet warna premium
     final primaryBlue = const Color(0xFF1E3A8A);
     final accentMint = const Color(0xFF06B6D4);
     final accentGreen = const Color(0xFF10B981);
@@ -25,6 +25,7 @@ class LandingPage extends StatelessWidget {
       backgroundColor: theme.scaffoldBackgroundColor,
       body: SafeArea(
         child: SingleChildScrollView(
+          physics: const BouncingScrollPhysics(),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -40,7 +41,7 @@ class LandingPage extends StatelessWidget {
                     ],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
-                    stops: [0.0, 0.6, 1.0],
+                    stops: const [0.0, 0.6, 1.0],
                   ),
                 ),
                 child: Column(
@@ -91,7 +92,7 @@ class LandingPage extends StatelessWidget {
                       'EventCrew',
                       style: theme.textTheme.headlineLarge?.copyWith(
                         color: Colors.white,
-                        fontWeight: FontWeight.w800,
+                        fontWeight: FontWeight.w900,
                       ),
                     ),
                     const SizedBox(height: 8),
@@ -109,9 +110,10 @@ class LandingPage extends StatelessWidget {
                       children: [
                         Expanded(
                           child: ElevatedButton(
+                            // 🔥 FIX: Mengubah rute navigasi dari HomeScreen ke AuthScreen
                             onPressed: () {
                               Navigator.of(context).pushReplacement(
-                                MaterialPageRoute(builder: (_) => const HomeScreen()),
+                                MaterialPageRoute(builder: (_) => const AuthScreen()),
                               );
                             },
                             style: ElevatedButton.styleFrom(
@@ -125,16 +127,17 @@ class LandingPage extends StatelessWidget {
                             ),
                             child: const Text(
                               'Get Started',
-                              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
                             ),
                           ),
                         ),
                         const SizedBox(width: 12),
                         Expanded(
                           child: OutlinedButton(
+                            // Skenario tombol Learn More tetap diarahkan ke AuthScreen agar user melakukan autentikasi terlebih dahulu
                             onPressed: () {
                               Navigator.of(context).pushReplacement(
-                                MaterialPageRoute(builder: (_) => const HomeScreen()),
+                                MaterialPageRoute(builder: (_) => const AuthScreen()),
                               );
                             },
                             style: OutlinedButton.styleFrom(
@@ -147,7 +150,7 @@ class LandingPage extends StatelessWidget {
                             ),
                             child: const Text(
                               'Learn More',
-                              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
                             ),
                           ),
                         ),
@@ -167,7 +170,7 @@ class LandingPage extends StatelessWidget {
                   children: [
                     Text(
                       'Key Features',
-                      style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+                      style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 16),
                     _FeatureTileNew(
@@ -220,7 +223,7 @@ class LandingPage extends StatelessWidget {
                         const SizedBox(width: 8),
                         Text(
                           'Quick Start',
-                          style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                          style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
                         ),
                       ],
                     ),
@@ -258,7 +261,6 @@ class LandingPage extends StatelessWidget {
   }
 }
 
-/// Feature tile widget with icon, title, and subtitle
 class _FeatureTileNew extends StatelessWidget {
   final IconData icon;
   final String title;
@@ -312,7 +314,7 @@ class _FeatureTileNew extends StatelessWidget {
               children: [
                 Text(
                   title,
-                  style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+                  style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 4),
                 Text(
@@ -331,7 +333,6 @@ class _FeatureTileNew extends StatelessWidget {
   }
 }
 
-/// Quick step item for onboarding
 class _QuickStepItem extends StatelessWidget {
   final int step;
   final String text;
@@ -355,7 +356,7 @@ class _QuickStepItem extends StatelessWidget {
               '$step',
               style: const TextStyle(
                 color: Colors.white,
-                fontWeight: FontWeight.w700,
+                fontWeight: FontWeight.bold,
                 fontSize: 12,
               ),
             ),
@@ -372,4 +373,3 @@ class _QuickStepItem extends StatelessWidget {
     );
   }
 }
-

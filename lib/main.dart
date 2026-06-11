@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'helpers/prefs_helper.dart';
-import 'screens/splash_screen.dart';
+import 'screens/splash_screen.dart'; 
+import 'screens/auth_screen.dart'; 
 import 'screens/home_screen.dart';
 import 'screens/landing_page.dart';
 
@@ -32,7 +33,7 @@ class EventCrewApp extends StatelessWidget {
           secondary: const Color(0xFF10B981),
         ),
       ),
-      // Show SplashScreen first (3-sec timer) → LandingPage → HomeScreen
+
       home: const SplashScreen(),
     );
   }
