@@ -1,8 +1,10 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../helpers/database_helper.dart';
 import '../helpers/prefs_helper.dart';
 import 'event_detail_screen.dart';
+import 'profile_page.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -17,6 +19,7 @@ class _HomeScreenState extends State<HomeScreen> {
   String _role = PrefsHelper.userRole; // Deklarasi variabel UNTUK MENYIMPAN STATUS ROLE USER
   bool _isDarkMode = PrefsHelper.isDarkMode;
   bool _isBalanceHidden = PrefsHelper.isBalanceHidden; // Deklarasi variabel SHARED PREFERENCES UNTUK MENYIMPAN STATUS BALANCE HIDDEN
+  String? _profilePhotoPath = PrefsHelper.userProfilePhoto.isEmpty ? null : PrefsHelper.userProfilePhoto; // Foto profil pengguna
 
   @override
   void initState() {
@@ -242,14 +245,26 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Halo, $_userName', style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: Colors.white)),
-              const SizedBox(height: 6),
-              // Teks role di bawah nama
-              Text('Dashboard $_role', style: const TextStyle(fontSize: 14, color: Colors.white70)),
-            ],
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Halo, $_userName',
+                  style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: Colors.white),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
+                ),
+                const SizedBox(height: 6),
+                // Teks role di bawah nama
+                Text(
+                  'Dashboard $_role',
+                  style: const TextStyle(fontSize: 14, color: Colors.white70),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
+                ),
+              ],
+            ),
           ),
           Row(
             children: [
@@ -275,19 +290,33 @@ class _HomeScreenState extends State<HomeScreen> {
                 },
               ),
               const SizedBox(width: 4),
-              // TOMBOL AVATAR UNTUK SWITCH ROLE USER ANTARA KETUPLAK DAN ANGGOTA, STATUS DISIMPAN DI SHARED PREFERENCES
+              // TOMBOL AVATAR UNTUK MEMBUKA PROFIL PENGGUNA
               GestureDetector(
                 onTap: () {
-                  String newRole = _role == 'Ketuplak' ? 'Anggota' : 'Ketuplak';
-                  PrefsHelper.setUserRole(newRole); // simpan ke SharedPreferences
-                  setState(() { _role = newRole; }); // update tampilan
-                   // Snackbar "Switched to Anggota mode" y
-                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Switched to $newRole mode'), duration: const Duration(seconds: 1)));
+                  /// Navigasi ke ProfilePage saat ikon profil ditekan
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const ProfilePage()),
+                  ).then((_) {
+                    /// Ketika kembali dari ProfilePage, refresh data dari SharedPreferences
+                    setState(() {
+                      _userName = PrefsHelper.userName;
+                      _role = PrefsHelper.userRole;
+                      // Refresh foto profil
+                      final photo = PrefsHelper.userProfilePhoto;
+                      _profilePhotoPath = photo.isEmpty ? null : photo;
+                    });
+                  });
                 },
-                child: CircleAvatar(  // tombol avatar bulat putih
+                child: CircleAvatar(
                   radius: 24,
                   backgroundColor: Colors.white,
-                  child: Icon(Icons.person, color: headerColor, size: 30),
+                  backgroundImage: _profilePhotoPath != null
+                      ? FileImage(File(_profilePhotoPath!)) as ImageProvider
+                      : null,
+                  child: _profilePhotoPath == null
+                      ? Icon(Icons.person, color: headerColor, size: 30)
+                      : null,
                 ),
               ),
             ],

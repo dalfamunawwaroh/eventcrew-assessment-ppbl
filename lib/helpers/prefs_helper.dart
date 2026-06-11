@@ -22,4 +22,9 @@ class PrefsHelper {
   // 4. Key: User Role (Default: Ketuplak)
   static String get userRole => _prefs.getString('user_role') ?? 'Ketuplak';
   static Future<void> setUserRole(String value) async => await _prefs.setString('user_role', value);
+
+  // 5. Key: User Profile Photo Path
+  static String get userProfilePhoto => _prefs.getString('user_profile_photo') ?? '';
+  static Future<void> setUserProfilePhoto(String value) async => await _prefs.setString('user_profile_photo', value);
+  static Future<void> deleteUserProfilePhoto() async => await _prefs.remove('user_profile_photo');
 }
