@@ -12,7 +12,7 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  // Palet Warna Desain Premium (Bebas Error)
+  // Palet Warna Premium
   final Color navyDark = const Color(0xFF0F172A);
   final Color navyPrimary = const Color(0xFF1E3A8A);
   final Color electricBlue = const Color(0xFF2563EB);
@@ -20,7 +20,7 @@ class _HomeScreenState extends State<HomeScreen> {
   final Color softIce = const Color(0xFFEEF2F6);
 
   List<Map<String, dynamic>> _acaraList = [];
-  late final String _userName; // Diubah ke final untuk memperbaiki linter warning
+  late final String _userName; 
   String _role = PrefsHelper.userRole;
   bool _isDarkMode = PrefsHelper.isDarkMode;
   bool _isBalanceHidden = PrefsHelper.isBalanceHidden;
@@ -45,7 +45,7 @@ class _HomeScreenState extends State<HomeScreen> {
     if (mounted) {
       setState(() {
         _acaraList = data;
-        _grandTotalBudget = totalBudget;
+        _grandTotalBudget = totalBudget; 
       });
     }
   }
@@ -113,7 +113,7 @@ class _HomeScreenState extends State<HomeScreen> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (bottomSheetContext) { // FIX: Menggunakan context terpisah untuk form modal sheet
+      builder: (bottomSheetContext) { 
         final Color formBg = _isDarkMode ? const Color(0xFF1E293B) : Colors.white;
         final Color textCol = _isDarkMode ? Colors.white : navyDark;
 
@@ -199,7 +199,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     });
 
                     _refreshAcaraList();
-                    if (bottomSheetContext.mounted) { // FIX: Menggunakan context aman asinkronus khusus sheet
+                    if (bottomSheetContext.mounted) { 
                       Navigator.pop(bottomSheetContext);
                     }
                   },
@@ -242,18 +242,9 @@ class _HomeScreenState extends State<HomeScreen> {
           _buildCustomHeader(),
           Expanded(
             child: _acaraList.isEmpty 
-                ? Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.layers_clear_outlined, size: 64, color: Colors.blueGrey.shade300),
-                        const SizedBox(height: 12),
-                        Text('Belum ada acara aktif.', style: TextStyle(color: Colors.blueGrey.shade300, fontWeight: FontWeight.bold)),
-                      ],
-                    ),
-                  )
+                ? Center(child: Text('Belum ada acara aktif. Mari buat baru!', style: TextStyle(color: _isDarkMode ? Colors.white60 : Colors.black54, fontWeight: FontWeight.w600)))
                 : ListView.builder(
-                    padding: const EdgeInsets.only(top: 12, left: 20, right: 20, bottom: 100),
+                    padding: const EdgeInsets.only(top: 16, left: 20, right: 20, bottom: 100),
                     physics: const BouncingScrollPhysics(),
                     itemCount: _acaraList.length,
                     itemBuilder: (context, index) {
@@ -263,7 +254,6 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ],
       ),
-      // KODE BARU: Semua user tanpa terkecuali bisa melihat tombol buat acara ini
       floatingActionButton: Container(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(20),
@@ -302,18 +292,27 @@ class _HomeScreenState extends State<HomeScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Halo, $_userName 👋', style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: -0.5)),
-                  const SizedBox(height: 4),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(12)),
-                    child: Text('Workspace $_role', style: const TextStyle(fontSize: 11, color: Colors.white, fontWeight: FontWeight.bold)),
-                  ),
-                ],
+              // 🔥 FIX OVERFLOW: Nama panjang dibungkus Expanded agar aman dipotong pakai titik-titik (ellipsis)
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Halo, $_userName 👋', 
+                      style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: -0.5),
+                      maxLines: 1, 
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(12)),
+                      child: Text('Workspace $_role', style: const TextStyle(fontSize: 11, color: Colors.white, fontWeight: FontWeight.bold)),
+                    ),
+                  ],
+                ),
               ),
+              const SizedBox(width: 16),
               Row(
                 children: [
                   _headerIconButton(
@@ -344,14 +343,14 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: CircleAvatar(
                       radius: 22,
                       backgroundColor: Colors.white.withValues(alpha: 0.2),
-                      child: const Icon(Icons.person_rounded, color: Colors.white, size: 24), // FIX: Menggunakan ikon default valid
+                      child: const Icon(Icons.person_rounded, color: Colors.white, size: 24),
                     ),
                   ),
                 ],
               )
             ],
           ),
-          const SizedBox(height: 28),
+          const SizedBox(height: 24),
           Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
@@ -368,14 +367,14 @@ class _HomeScreenState extends State<HomeScreen> {
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.2), shape: BoxShape.circle),
-                  child: const Icon(Icons.account_balance_rounded, color: Colors.white, size: 28),
+                  child: const Icon(Icons.account_balance_rounded, color: Colors.white, size: 26),
                 ),
                 const SizedBox(width: 16),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('Total Kelola Anggaran Proyek', style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w500)),
+                      const Text('Total Kelola Anggaran Proyek', style: TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.w500)),
                       const SizedBox(height: 2),
                       Text(
                         _isBalanceHidden ? 'Rp ••••••••' : formatRupiah(_grandTotalBudget),
@@ -443,20 +442,15 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                     child: Text(
                       statusProject,
-                      style: TextStyle(
-                        color: statusProject == 'Selesai' ? mintGreen : electricBlue, 
-                        fontSize: 11, 
-                        fontWeight: FontWeight.bold
-                      ),
+                      style: TextStyle(color: statusProject == 'Selesai' ? mintGreen : electricBlue, fontSize: 11, fontWeight: FontWeight.bold),
                     ),
                   ),
-                  if (_role == 'Ketuplak')
-                    IconButton(
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(),
-                      icon: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent, size: 22),
-                      onPressed: () => _showDeleteConfirmationDialog(acara['id'], acara['nama_acara']),
-                    )
+                  IconButton(
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                    icon: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent, size: 22),
+                    onPressed: () => _showDeleteConfirmationDialog(acara['id'], acara['nama_acara']),
+                  )
                 ],
               ),
               const SizedBox(height: 14),
@@ -464,18 +458,18 @@ class _HomeScreenState extends State<HomeScreen> {
                 acara['nama_acara'], 
                 style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: textCol, letterSpacing: -0.5)
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 14),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Alokasi RAB', style: TextStyle(fontSize: 11, color: Colors.blueGrey.shade300, fontWeight: FontWeight.bold)), // FIX: Properti diganti ke fontSize
+                      Text('Alokasi RAB', style: TextStyle(fontSize: 11, color: Colors.blueGrey.shade300, fontWeight: FontWeight.bold)),
                       const SizedBox(height: 2),
                       Text(
                         _isBalanceHidden ? 'Rp ••••••••' : formatRupiah(acara['budget_total']), 
-                        style: TextStyle(fontSize: 15, color: _isDarkMode ? mintGreen : navyPrimary, fontWeight: FontWeight.w900) // FIX: Mengganti .extrabold ke .w900
+                        style: TextStyle(fontSize: 15, color: _isDarkMode ? mintGreen : navyPrimary, fontWeight: FontWeight.w900)
                       ),
                     ],
                   ),

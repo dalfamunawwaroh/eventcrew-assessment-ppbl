@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'helpers/prefs_helper.dart';
-import 'screens/auth_screen.dart'; // Sudah diarahkan ke berkas AuthScreen baru
+import 'screens/splash_screen.dart'; 
+import 'screens/auth_screen.dart'; 
+import 'screens/home_screen.dart';
+import 'screens/landing_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -30,7 +33,8 @@ class EventCrewApp extends StatelessWidget {
           secondary: const Color(0xFF10B981),
         ),
       ),
-      home: const AuthScreen(), // Mengubah gerbang awal menjadi AuthScreen
+
+      home: const SplashScreen(),
     );
   }
 }
