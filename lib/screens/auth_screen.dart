@@ -1,8 +1,6 @@
 import 'dart:ui';
-import 'dart:convert'; // 🔥 Import utf8 untuk konversi sebelum hashing
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart'; 
-import 'package:crypto/crypto.dart'; // 🔥 Import library Crypto
 import '../helpers/prefs_helper.dart';
 import 'home_screen.dart';
 
@@ -41,12 +39,6 @@ class _AuthScreenState extends State<AuthScreen> {
     _regUserCtrl.dispose();
     _regPassCtrl.dispose();
     super.dispose();
-  }
-
-  // 🔥 FUNGSI REUSABLE: Enkripsi Password
-  String _hashPassword(String password) {
-    var bytes = utf8.encode(password); // Konversi string ke bytes
-    return sha256.convert(bytes).toString(); // Enkripsi SHA-256 lalu ubah kembali ke string acak
   }
 
   @override
@@ -230,28 +222,24 @@ class _AuthScreenState extends State<AuthScreen> {
             text: 'Sign In',
             onPressed: () async {
               String username = _loginUserCtrl.text.trim();
-              String rawPassword = _loginPassCtrl.text;
+              String rawPassword = _loginPassCtrl.text; // Plain text password
 
               if (username.isEmpty || rawPassword.isEmpty) {
                 ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Semua kolom wajib diisi!'), backgroundColor: Colors.redAccent));
                 return;
               }
 
-              // 🔥 PROSES ENKRIPSI INPUTAN USER UNTUK DICOCOKKAN
-              String hashedInputPassword = _hashPassword(rawPassword);
-
               final prefs = await SharedPreferences.getInstance();
               String? savedName = prefs.getString('simulasi_nama_$username');
-              String? savedHashedPass = prefs.getString('simulasi_pass_$username');
+              String? savedPass = prefs.getString('simulasi_pass_$username');
 
               if (!mounted) return;
 
               if (savedName == null) {
                 ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Username belum terdaftar! Silakan Sign Up terlebih dahulu.'), backgroundColor: Colors.redAccent));
-              } else if (savedHashedPass != hashedInputPassword) { // 🔥 Validasi dengan password terenkripsi
+              } else if (savedPass != rawPassword) { // Pengecekan tanpa hash
                 ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Password salah! Coba lagi.'), backgroundColor: Colors.redAccent));
               } else {
-                // Pastikan fungsi ini ada di prefs_helper.dart
                 try {
                    await PrefsHelper.setCurrentUsername(username); 
                 } catch(e) {
@@ -337,11 +325,9 @@ class _AuthScreenState extends State<AuthScreen> {
                  return;
               }
 
-              // 🔥 PROSES ENKRIPSI PASSWORD SEBELUM DISIMPAN KE PENYIMPANAN
-              String hashedPassword = _hashPassword(rawPassword);
-
+              // Simpan langsung Plain Text tanpa Hash
               await prefs.setString('simulasi_nama_$username', name);
-              await prefs.setString('simulasi_pass_$username', hashedPassword); // 🔥 Simpan versi Enkripsi
+              await prefs.setString('simulasi_pass_$username', rawPassword); 
 
               try {
                  await PrefsHelper.setCurrentUsername(username);

@@ -1,8 +1,11 @@
-import 'dart:math'; // 🔥 IMPORT BARU: Wajib untuk kalkulasi sudut CustomPainter
+import 'dart:math'; 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:shared_preferences/shared_preferences.dart'; 
+import 'package:confetti/confetti.dart'; // 🔥 IMPORT BARU: Library Confetti
 import '../helpers/database_helper.dart';
 import '../helpers/prefs_helper.dart';
+import '../widgets/interactive_date_strip.dart';
 
 class EventDetailScreen extends StatefulWidget {
   final int idAcara;
@@ -28,12 +31,24 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
   final bool _isBalanceHidden = PrefsHelper.isBalanceHidden;
   final bool _isDarkMode = PrefsHelper.isDarkMode;
 
+  // 🔥 STATE BARU UNTUK CONFETTI
+  late ConfettiController _confettiController;
+
   @override
   void initState() {
     super.initState();
     _namaAcaraReal = widget.namaAcara;
     _loadDataAcara();
     _checkKetuplakStatus();
+    
+    // Inisialisasi Confetti Controller (Animasi berlangsung 2 detik)
+    _confettiController = ConfettiController(duration: const Duration(seconds: 2));
+  }
+
+  @override
+  void dispose() {
+    _confettiController.dispose(); // Wajib di-dispose agar tidak memory leak
+    super.dispose();
   }
 
   Future<void> _checkKetuplakStatus() async {
@@ -147,11 +162,28 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
             onPressed: () async {
               String invitedUser = usernameController.text.trim();
               if (invitedUser.isNotEmpty) {
+                final prefs = await SharedPreferences.getInstance();
+                String? invitedFullName = prefs.getString('simulasi_nama_$invitedUser');
+
+                if (!mounted) return;
+
+                if (invitedFullName == null) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Gagal! Username tersebut belum terdaftar di aplikasi EventCrew.'), backgroundColor: Colors.redAccent, behavior: SnackBarBehavior.floating)
+                  );
+                  return; 
+                }
+
+                if (invitedFullName == PrefsHelper.userName) {
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Anda tidak bisa mengundang diri sendiri!'), backgroundColor: Colors.orange, behavior: SnackBarBehavior.floating));
+                  return;
+                }
+
                 Navigator.pop(dialogCtx);
                 
                 await DatabaseHelper.instance.insertDivisi({
                   'id_acara': widget.idAcara,
-                  'nama_divisi': 'Anggota (Pending): $invitedUser', 
+                  'nama_divisi': 'Anggota (Pending): $invitedFullName', 
                   'alokasi_budget': 0,
                   'status': 'Belum Aktif'
                 });
@@ -159,11 +191,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                 if (mounted) setState(() {}); 
 
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Berhasil mengirim undangan kolaborasi ke @$invitedUser!'),
-                    backgroundColor: mint,
-                    behavior: SnackBarBehavior.floating,
-                  )
+                  SnackBar(content: Text('Berhasil mengirim undangan ke $invitedFullName (@$invitedUser)!'), backgroundColor: mint, behavior: SnackBarBehavior.floating)
                 );
               }
             },
@@ -180,100 +208,122 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
     final Color cardColor = _isDarkMode ? const Color(0xFF1E1E1E) : Colors.white;
     final Color titleColor = _isDarkMode ? Colors.white : const Color(0xFF1E3A8A);
 
-    return DefaultTabController(
-      length: 3,
-      child: Scaffold(
-        backgroundColor: backgroundColor,
-        appBar: AppBar(
-          backgroundColor: Colors.transparent, elevation: 0,
-          leading: IconButton(icon: Icon(Icons.arrow_back_ios_new, color: titleColor), onPressed: () => Navigator.pop(context)),
-          title: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(_namaAcaraReal, style: TextStyle(color: titleColor, fontWeight: FontWeight.w900, fontSize: 22, letterSpacing: -0.5)),
-              if (_tanggalAcara.isNotEmpty)
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text('📅 ', style: TextStyle(fontSize: 12, color: titleColor)),
-                    Text('Pelaksanaan: ${formatTanggal(_tanggalAcara)}', style: TextStyle(color: _isDarkMode ? Colors.white70 : navy, fontSize: 12, fontWeight: FontWeight.w600)),
-                  ],
+    // 🔥 WIDGET STACK DI LEVEL TERLUAR AGAR CONFETTI MENUTUPI SELURUH LAYAR
+    return Stack(
+      children: [
+        DefaultTabController(
+          length: 3,
+          child: Scaffold(
+            backgroundColor: backgroundColor,
+            appBar: AppBar(
+              backgroundColor: Colors.transparent, elevation: 0,
+              leading: IconButton(icon: Icon(Icons.arrow_back_ios_new, color: titleColor), onPressed: () => Navigator.pop(context)),
+              title: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(_namaAcaraReal, style: TextStyle(color: titleColor, fontWeight: FontWeight.w900, fontSize: 22, letterSpacing: -0.5)),
+                  if (_tanggalAcara.isNotEmpty)
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text('📅 ', style: TextStyle(fontSize: 12, color: titleColor)),
+                        Text('Pelaksanaan: ${formatTanggal(_tanggalAcara)}', style: TextStyle(color: _isDarkMode ? Colors.white70 : navy, fontSize: 12, fontWeight: FontWeight.w600)),
+                      ],
+                    ),
+                ],
+              ),
+              centerTitle: true,
+              actions: [
+                Padding(
+                  padding: const EdgeInsets.only(right: 8.0),
+                  child: Center(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(color: mint.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(10)),
+                      child: Text(_status, style: TextStyle(color: mint, fontWeight: FontWeight.w800, fontSize: 11)),
+                    ),
+                  ),
                 ),
+                if (_isKetuplak)
+                  PopupMenuButton<String>(
+                    icon: Icon(Icons.more_vert, color: titleColor),
+                    onSelected: (value) async {
+                      if (value == 'edit_acara') {
+                        _showEditAcaraDialog();
+                      } else if (value == 'add_member') {
+                        _showAddMemberDialog();
+                      } else {
+                        await DatabaseHelper.instance.updateAcaraStatus(widget.idAcara, value);
+                        if (mounted) setState(() => _status = value);
+                      }
+                    },
+                    itemBuilder: (context) => const [
+                      PopupMenuItem(value: 'edit_acara', child: Text('✏️ Edit Info Acara')),
+                      PopupMenuItem(value: 'add_member', child: Text('👤 Tambah Anggota Tim')), 
+                      PopupMenuDivider(),
+                      PopupMenuItem(value: 'Persiapan', child: Text('Status: Persiapan')),
+                      PopupMenuItem(value: 'Aktif', child: Text('Status: Aktif')),
+                      PopupMenuItem(value: 'Selesai', child: Text('Status: Selesai')),
+                    ],
+                  ),
+              ],
+            ),
+            body: Column(
+              children: [
+                Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 10), height: 54,
+                  decoration: BoxDecoration(
+                    color: cardColor, borderRadius: BorderRadius.circular(25),
+                    boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: _isDarkMode ? 0.3 : 0.05), blurRadius: 10)],
+                  ),
+                  child: TabBar(
+                    indicatorSize: TabBarIndicatorSize.tab, dividerColor: Colors.transparent, labelPadding: const EdgeInsets.symmetric(horizontal: 4),
+                    indicator: BoxDecoration(color: _isDarkMode ? mint : navy, borderRadius: BorderRadius.circular(25)),
+                    labelColor: Colors.white, labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                    unselectedLabelColor: _isDarkMode ? Colors.white60 : Colors.blueGrey.shade600,
+                    tabs: const [Tab(text: 'Tugas/Divisi'), Tab(text: 'RAB Acara'), Tab(text: 'Tim')],
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Expanded(
+                  child: TabBarView(
+                    physics: const BouncingScrollPhysics(),
+                    children: [
+                      _buildDivisiTab(),
+                      _buildRABTab(),
+                      _buildMemberTab(), 
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            floatingActionButton: _isKetuplak 
+                ? FloatingActionButton.extended(
+                    backgroundColor: mint, elevation: 4, onPressed: _showAddDivisiDialog, 
+                    icon: const Icon(Icons.add_rounded, color: Colors.white),
+                    label: const Text('Buat Divisi', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                  )
+                : null,
+          ),
+        ),
+
+        // 🔥 LOGIKA CONFETTI: Diletakkan di atas layar agar jatuh seperti hujan 
+        Align(
+          alignment: Alignment.topCenter,
+          child: ConfettiWidget(
+            confettiController: _confettiController,
+            blastDirection: pi / 2, // Arah ledakan ke bawah (90 derajat)
+            maxBlastForce: 5,       // Kekuatan tembakan
+            minBlastForce: 2,
+            emissionFrequency: 0.05,// Kerapatan kertas
+            numberOfParticles: 50,  // Jumlah kertas yang keluar
+            gravity: 0.1,           // Kecepatan jatuh kertas
+            colors: const [
+              Colors.green, Colors.blue, Colors.pink, Colors.orange, Colors.purple
             ],
           ),
-          centerTitle: true,
-          actions: [
-            Padding(
-              padding: const EdgeInsets.only(right: 8.0),
-              child: Center(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(color: mint.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(10)),
-                  child: Text(_status, style: TextStyle(color: mint, fontWeight: FontWeight.w800, fontSize: 11)),
-                ),
-              ),
-            ),
-            if (_isKetuplak)
-              PopupMenuButton<String>(
-                icon: Icon(Icons.more_vert, color: titleColor),
-                onSelected: (value) async {
-                  if (value == 'edit_acara') {
-                    _showEditAcaraDialog();
-                  } else if (value == 'add_member') {
-                    _showAddMemberDialog();
-                  } else {
-                    await DatabaseHelper.instance.updateAcaraStatus(widget.idAcara, value);
-                    if (mounted) setState(() => _status = value);
-                  }
-                },
-                itemBuilder: (context) => const [
-                  PopupMenuItem(value: 'edit_acara', child: Text('✏️ Edit Info Acara')),
-                  PopupMenuItem(value: 'add_member', child: Text('👤 Tambah Anggota Tim')), 
-                  PopupMenuDivider(),
-                  PopupMenuItem(value: 'Persiapan', child: Text('Status: Persiapan')),
-                  PopupMenuItem(value: 'Aktif', child: Text('Status: Aktif')),
-                  PopupMenuItem(value: 'Selesai', child: Text('Status: Selesai')),
-                ],
-              ),
-          ],
         ),
-        body: Column(
-          children: [
-            Container(
-              margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 10), height: 54,
-              decoration: BoxDecoration(
-                color: cardColor, borderRadius: BorderRadius.circular(25),
-                boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: _isDarkMode ? 0.3 : 0.05), blurRadius: 10)],
-              ),
-              child: TabBar(
-                indicatorSize: TabBarIndicatorSize.tab, dividerColor: Colors.transparent, labelPadding: const EdgeInsets.symmetric(horizontal: 4),
-                indicator: BoxDecoration(color: _isDarkMode ? mint : navy, borderRadius: BorderRadius.circular(25)),
-                labelColor: Colors.white, labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                unselectedLabelColor: _isDarkMode ? Colors.white60 : Colors.blueGrey.shade600,
-                tabs: const [Tab(text: 'Tugas/Divisi'), Tab(text: 'RAB Acara'), Tab(text: 'Tim')],
-              ),
-            ),
-            const SizedBox(height: 10),
-            Expanded(
-              child: TabBarView(
-                physics: const BouncingScrollPhysics(),
-                children: [
-                  _buildDivisiTab(),
-                  _buildRABTab(),
-                  _buildMemberTab(), 
-                ],
-              ),
-            ),
-          ],
-        ),
-        floatingActionButton: _isKetuplak 
-            ? FloatingActionButton.extended(
-                backgroundColor: mint, elevation: 4, onPressed: _showAddDivisiDialog, 
-                icon: const Icon(Icons.add_rounded, color: Colors.white),
-                label: const Text('Buat Divisi', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-              )
-            : null,
-      ),
+      ],
     );
   }
 
@@ -291,7 +341,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
   }
 
   // =================================================================
-  // TAB 1: DIVISI & TUGAS
+  // TAB 1: DIVISI & TUGAS (DILENGKAPI DATE STRIP & CONFETTI 🔥)
   // =================================================================
   Widget _buildDivisiTab() {
     final Color bgCard = _isDarkMode ? const Color(0xFF1E1E1E) : Colors.white;
@@ -299,174 +349,210 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
     final Color titleTxtColor = _isDarkMode ? Colors.white : navy;
     final Color innerContainerColor = _isDarkMode ? const Color(0xFF2A2A2A) : Colors.blueGrey.shade50;
 
-    return FutureBuilder<List<Map<String, dynamic>>>(
-      future: DatabaseHelper.instance.getDivisiByAcara(widget.idAcara),
-      builder: (context, snapshot) {
-        if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
-        
-        final divisiList = snapshot.data!.where((d) => 
-          !d['nama_divisi'].toString().startsWith('Anggota:') && 
-          !d['nama_divisi'].toString().startsWith('Anggota (Pending):') && 
-          !d['nama_divisi'].toString().startsWith('Inti (Ketuplak:')
-        ).toList();
+    return Column(
+      children: [
+        // 🔥 WIDGET CUSTOM DATE STRIP DITAMBAHKAN DI SINI
+        Padding(
+          padding: const EdgeInsets.only(top: 8.0, bottom: 8.0),
+          child: InteractiveHorizontalDateStrip(
+            isDarkMode: _isDarkMode,
+            onDateSelected: (DateTime selectedDate) {
+              // Untuk presentasi awal: Menampilkan SnackBar interaktif
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Menjadwalkan ulang untuk: ${DateFormat('dd MMM yyyy').format(selectedDate)}'),
+                  behavior: SnackBarBehavior.floating,
+                  backgroundColor: mint,
+                  duration: const Duration(seconds: 1),
+                ),
+              );
+            },
+          ),
+        ),
 
-        if (divisiList.isEmpty) return _buildPlaceholder('Belum ada divisi yang dibentuk.', Icons.groups_outlined);
+        // 🔥 DAFTAR DIVISI DIBUNGKUS EXPANDED AGAR BISA SCROLL DI BAWAH DATE STRIP
+        Expanded(
+          child: FutureBuilder<List<Map<String, dynamic>>>(
+            future: DatabaseHelper.instance.getDivisiByAcara(widget.idAcara),
+            builder: (context, snapshot) {
+              if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+              
+              final divisiList = snapshot.data!.where((d) => 
+                !d['nama_divisi'].toString().startsWith('Anggota:') && 
+                !d['nama_divisi'].toString().startsWith('Anggota (Pending):') && 
+                !d['nama_divisi'].toString().startsWith('Inti (Ketuplak:')
+              ).toList();
 
-        return ListView.builder(
-          padding: const EdgeInsets.only(left: 20, right: 20, bottom: 100),
-          physics: const BouncingScrollPhysics(),
-          itemCount: divisiList.length,
-          itemBuilder: (context, index) {
-            final div = divisiList[index];
+              if (divisiList.isEmpty) return _buildPlaceholder('Belum ada divisi yang dibentuk.', Icons.groups_outlined);
 
-            return Container(
-              margin: const EdgeInsets.only(bottom: 16),
-              decoration: BoxDecoration(
-                color: bgCard, borderRadius: BorderRadius.circular(20),
-                boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: _isDarkMode ? 0.2 : 0.03), blurRadius: 10, offset: const Offset(0, 4))],
-              ),
-              child: Theme(
-                data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
-                child: ExpansionTile(
-                  key: PageStorageKey('divisi_${div['id']}'),
-                  collapsedIconColor: _isDarkMode ? Colors.white60 : Colors.grey,
-                  iconColor: _isDarkMode ? mint : navy,
-                  tilePadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                  leading: Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(color: _statusColor((div['status'] as String?) ?? 'Belum Aktif').withValues(alpha: 0.2), shape: BoxShape.circle),
-                    child: Icon(Icons.workspaces_filled, color: _statusColor((div['status'] as String?) ?? 'Belum Aktif')),
-                  ),
-                  title: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Expanded(child: Text(div['nama_divisi'], style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: titleTxtColor), overflow: TextOverflow.ellipsis)),
-                      if (_isKetuplak)
-                        IconButton(
-                          padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
-                          icon: Icon(Icons.delete_outline, size: 20, color: Colors.red.shade400),
-                          onPressed: () => _confirmDeleteDivisi(div),
+              return ListView.builder(
+                padding: const EdgeInsets.only(left: 20, right: 20, bottom: 100),
+                physics: const BouncingScrollPhysics(),
+                itemCount: divisiList.length,
+                itemBuilder: (context, index) {
+                  final div = divisiList[index];
+
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 16),
+                    decoration: BoxDecoration(
+                      color: bgCard, borderRadius: BorderRadius.circular(20),
+                      boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: _isDarkMode ? 0.2 : 0.03), blurRadius: 10, offset: const Offset(0, 4))],
+                    ),
+                    child: Theme(
+                      data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+                      child: ExpansionTile(
+                        key: PageStorageKey('divisi_${div['id']}'),
+                        collapsedIconColor: _isDarkMode ? Colors.white60 : Colors.grey,
+                        iconColor: _isDarkMode ? mint : navy,
+                        tilePadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                        leading: Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(color: _statusColor((div['status'] as String?) ?? 'Belum Aktif').withValues(alpha: 0.2), shape: BoxShape.circle),
+                          child: Icon(Icons.workspaces_filled, color: _statusColor((div['status'] as String?) ?? 'Belum Aktif')),
                         ),
-                    ],
-                  ),
-                  subtitle: FutureBuilder<Map<String, int>>(
-                    future: DatabaseHelper.instance.getTaskProgressByDivisi(div['id']),
-                    builder: (context, progressSnapshot) {
-                      final progress = progressSnapshot.data ?? {'total': 0, 'done': 0};
-                      final total = progress['total']!;   
-                      final done = progress['done']!;     
-                      final percent = total == 0 ? 0 : ((done / total) * 100).round();  
-                      final s = (div['status'] as String?) ?? 'Belum Aktif';
-
-                      return Padding(
-                        padding: const EdgeInsets.only(top: 8.0),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                        title: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Chip(
-                              visualDensity: VisualDensity.compact, padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
-                              backgroundColor: _statusColor(s).withValues(alpha: 0.12),
-                              label: Text(s, style: TextStyle(color: _statusColor(s), fontSize: 11, fontWeight: FontWeight.w600)),
-                              side: BorderSide.none,
-                            ),
-                            const SizedBox(height: 6),
-                            Row(
-                              children: [
-                                Expanded(child: ClipRRect(borderRadius: BorderRadius.circular(4), child: LinearProgressIndicator(value: total == 0 ? 0 : (done / total), backgroundColor: _isDarkMode ? Colors.grey.shade800 : Colors.grey.shade300, valueColor: AlwaysStoppedAnimation<Color>(mint)))),
-                                const SizedBox(width: 10),
-                                Text('$percent%', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: titleTxtColor)),
-                              ],
-                            ),
-                            const SizedBox(height: 2),
-                            Text('$done dari $total tugas selesai', style: TextStyle(fontSize: 11, color: _isDarkMode ? Colors.white60 : Colors.blueGrey.shade500, fontWeight: FontWeight.w500)),
+                            Expanded(child: Text(div['nama_divisi'], style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: titleTxtColor), overflow: TextOverflow.ellipsis)),
+                            if (_isKetuplak)
+                              IconButton(
+                                padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
+                                icon: Icon(Icons.delete_outline, size: 20, color: Colors.red.shade400),
+                                onPressed: () => _confirmDeleteDivisi(div),
+                              ),
                           ],
                         ),
-                      );
-                    },
-                  ),
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.only(left: 16, right: 16, bottom: 16),
-                      width: double.infinity,
-                      decoration: BoxDecoration(color: innerContainerColor, borderRadius: const BorderRadius.vertical(bottom: Radius.circular(20))),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Divider(),
-                          const Padding(padding: EdgeInsets.symmetric(vertical: 8.0), child: Text('Daftar Tugas:', style: TextStyle(fontWeight: FontWeight.w700, color: Colors.blueGrey))),
-                          FutureBuilder<List<Map<String, dynamic>>>(
-                            future: DatabaseHelper.instance.getTasksByDivisi(div['id']),
-                            builder: (context, taskSnapshot) {
-                              if (!taskSnapshot.hasData) return const SizedBox.shrink();
-                              final tasks = taskSnapshot.data!;
-                              if (tasks.isEmpty) return const Padding(padding: EdgeInsets.only(bottom: 8.0), child: Text('Belum ada tugas.', style: TextStyle(color: Colors.grey, fontStyle: FontStyle.italic)));
+                        subtitle: FutureBuilder<Map<String, int>>(
+                          future: DatabaseHelper.instance.getTaskProgressByDivisi(div['id']),
+                          builder: (context, progressSnapshot) {
+                            final progress = progressSnapshot.data ?? {'total': 0, 'done': 0};
+                            final total = progress['total']!;   
+                            final done = progress['done']!;     
+                            final percent = total == 0 ? 0 : ((done / total) * 100).round();  
+                            final s = (div['status'] as String?) ?? 'Belum Aktif';
 
-                              return Column(
-                                children: tasks.map((task) {
-                                  return ListTile(
-                                    contentPadding: EdgeInsets.zero,
-                                    leading: Checkbox(
-                                      activeColor: mint, value: task['is_done'] == 1, 
-                                      onChanged: (bool? value) async {
-                                        await DatabaseHelper.instance.updateTaskStatus(task['id'], value! ? 1 : 0);
-                                        setState(() {}); 
-                                      },
-                                    ),
-                                    title: Text(task['nama_task'], style: TextStyle(decoration: task['is_done'] == 1 ? TextDecoration.lineThrough : null, color: task['is_done'] == 1 ? Colors.grey : txtColor, fontWeight: FontWeight.w600)),
-                                    subtitle: task['deadline'] != null && (task['deadline'] as String).isNotEmpty
-                                        ? Text('Deadline: ${task['deadline']}', style: TextStyle(fontSize: 11, color: _isDarkMode ? Colors.white60 : Colors.black54, fontWeight: FontWeight.w500))
-                                        : null,
-                                    trailing: _isKetuplak ? Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        IconButton(icon: const Icon(Icons.edit_outlined, size: 20, color: Colors.blueGrey), onPressed: () => _showEditTaskDialog(task)),
-                                        IconButton(
-                                          icon: Icon(Icons.delete_outline, size: 20, color: Colors.red.shade400),
-                                          onPressed: () async {
-                                            final confirm = await showDialog<bool>(
-                                              context: context,
-                                              builder: (dialogCtx) => AlertDialog(
-                                                title: const Text('Hapus Tugas', style: TextStyle(fontWeight: FontWeight.bold)),
-                                                content: Text('Hapus tugas "${task['nama_task']}"?'),
-                                                actions: [
-                                                  TextButton(onPressed: () => Navigator.pop(dialogCtx, false), child: const Text('Batal')),
-                                                  ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.red.shade400), onPressed: () => Navigator.pop(dialogCtx, true), child: const Text('Hapus', style: TextStyle(color: Colors.white))),
-                                                ],
-                                              ),
-                                            );
-                                            if (confirm == true) { await DatabaseHelper.instance.deleteTask(task['id']); setState(() {}); }
-                                          },
-                                        ),
-                                      ],
-                                    ) : null,
-                                  );
-                                }).toList(),
-                              );
-                            },
-                          ),
-                          if (_isKetuplak)
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.end,
+                            return Padding(
+                              padding: const EdgeInsets.only(top: 8.0),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Chip(
+                                    visualDensity: VisualDensity.compact, padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
+                                    backgroundColor: _statusColor(s).withValues(alpha: 0.12),
+                                    label: Text(s, style: TextStyle(color: _statusColor(s), fontSize: 11, fontWeight: FontWeight.w600)),
+                                    side: BorderSide.none,
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Row(
+                                    children: [
+                                      Expanded(child: ClipRRect(borderRadius: BorderRadius.circular(4), child: LinearProgressIndicator(value: total == 0 ? 0 : (done / total), backgroundColor: _isDarkMode ? Colors.grey.shade800 : Colors.grey.shade300, valueColor: AlwaysStoppedAnimation<Color>(mint)))),
+                                      const SizedBox(width: 10),
+                                      Text('$percent%', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: titleTxtColor)),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text('$done dari $total tugas selesai', style: TextStyle(fontSize: 11, color: _isDarkMode ? Colors.white60 : Colors.blueGrey.shade500, fontWeight: FontWeight.w500)),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.only(left: 16, right: 16, bottom: 16),
+                            width: double.infinity,
+                            decoration: BoxDecoration(color: innerContainerColor, borderRadius: const BorderRadius.vertical(bottom: Radius.circular(20))),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                TextButton.icon(onPressed: () => _showEditDivisiDialog(div), icon: const Icon(Icons.edit, color: Colors.blueGrey, size: 16), label: const Text('Edit Divisi', style: TextStyle(color: Colors.blueGrey, fontSize: 12, fontWeight: FontWeight.bold))),
-                                TextButton.icon(onPressed: () => _showAddTaskDialog(div['id'], div['nama_divisi']), icon: Icon(Icons.add_task, color: _isDarkMode ? mint : navy, size: 18), label: Text('Tambah Tugas', style: TextStyle(color: _isDarkMode ? mint : navy, fontWeight: FontWeight.bold))),
+                                const Divider(),
+                                const Padding(padding: EdgeInsets.symmetric(vertical: 8.0), child: Text('Daftar Tugas:', style: TextStyle(fontWeight: FontWeight.w700, color: Colors.blueGrey))),
+                                FutureBuilder<List<Map<String, dynamic>>>(
+                                  future: DatabaseHelper.instance.getTasksByDivisi(div['id']),
+                                  builder: (context, taskSnapshot) {
+                                    if (!taskSnapshot.hasData) return const SizedBox.shrink();
+                                    final tasks = taskSnapshot.data!;
+                                    if (tasks.isEmpty) return const Padding(padding: EdgeInsets.only(bottom: 8.0), child: Text('Belum ada tugas.', style: TextStyle(color: Colors.grey, fontStyle: FontStyle.italic)));
+
+                                    return Column(
+                                      children: tasks.map((task) {
+                                        return ListTile(
+                                          contentPadding: EdgeInsets.zero,
+                                          leading: Checkbox(
+                                            activeColor: mint, value: task['is_done'] == 1, 
+                                            onChanged: (bool? value) async {
+                                              int isDone = value! ? 1 : 0;
+                                              await DatabaseHelper.instance.updateTaskStatus(task['id'], isDone);
+                                              
+                                              // 🔥 LOGIKA TRIGGER CONFETTI:
+                                              if (isDone == 1) {
+                                                final progress = await DatabaseHelper.instance.getTaskProgressByDivisi(div['id']);
+                                                if (progress['total']! > 0 && progress['done'] == progress['total']) {
+                                                  _confettiController.play(); 
+                                                }
+                                              }
+                                              
+                                              setState(() {}); 
+                                            },
+                                          ),
+                                          title: Text(task['nama_task'], style: TextStyle(decoration: task['is_done'] == 1 ? TextDecoration.lineThrough : null, color: task['is_done'] == 1 ? Colors.grey : txtColor, fontWeight: FontWeight.w600)),
+                                          subtitle: task['deadline'] != null && (task['deadline'] as String).isNotEmpty
+                                              ? Text('Deadline: ${task['deadline']}', style: TextStyle(fontSize: 11, color: _isDarkMode ? Colors.white60 : Colors.black54, fontWeight: FontWeight.w500))
+                                              : null,
+                                          trailing: _isKetuplak ? Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              IconButton(icon: const Icon(Icons.edit_outlined, size: 20, color: Colors.blueGrey), onPressed: () => _showEditTaskDialog(task)),
+                                              IconButton(
+                                                icon: Icon(Icons.delete_outline, size: 20, color: Colors.red.shade400),
+                                                onPressed: () async {
+                                                  final confirm = await showDialog<bool>(
+                                                    context: context,
+                                                    builder: (dialogCtx) => AlertDialog(
+                                                      title: const Text('Hapus Tugas', style: TextStyle(fontWeight: FontWeight.bold)),
+                                                      content: Text('Hapus tugas "${task['nama_task']}"?'),
+                                                      actions: [
+                                                        TextButton(onPressed: () => Navigator.pop(dialogCtx, false), child: const Text('Batal')),
+                                                        ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.red.shade400), onPressed: () => Navigator.pop(dialogCtx, true), child: const Text('Hapus', style: TextStyle(color: Colors.white))),
+                                                      ],
+                                                    ),
+                                                  );
+                                                  if (confirm == true) { await DatabaseHelper.instance.deleteTask(task['id']); setState(() {}); }
+                                                },
+                                              ),
+                                            ],
+                                          ) : null,
+                                        );
+                                      }).toList(),
+                                    );
+                                  },
+                                ),
+                                if (_isKetuplak)
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.end,
+                                    children: [
+                                      TextButton.icon(onPressed: () => _showEditDivisiDialog(div), icon: const Icon(Icons.edit, color: Colors.blueGrey, size: 16), label: const Text('Edit Divisi', style: TextStyle(color: Colors.blueGrey, fontSize: 12, fontWeight: FontWeight.bold))),
+                                      TextButton.icon(onPressed: () => _showAddTaskDialog(div['id'], div['nama_divisi']), icon: Icon(Icons.add_task, color: _isDarkMode ? mint : navy, size: 18), label: Text('Tambah Tugas', style: TextStyle(color: _isDarkMode ? mint : navy, fontWeight: FontWeight.bold))),
+                                    ],
+                                  ),
                               ],
                             ),
+                          ),
                         ],
                       ),
-                    ),
-                  ],
-                ),
-              )
-            );
-          },
-        );
-      },
+                    )
+                  );
+                },
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
-
+  
   // =================================================================
-  // TAB 2: RAB ACARA DENGAN CUSTOM DRAWING (DONUT CHART) 🔥
+  // TAB 2: RAB ACARA DENGAN CUSTOM DRAWING (DONUT CHART)
   // =================================================================
   Widget _buildRABTab() {
     final Color bgCard = _isDarkMode ? const Color(0xFF1E1E1E) : Colors.white;
@@ -487,190 +573,195 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
         
         if (divisiList.isEmpty) return _buildPlaceholder('Belum ada divisi/RAB.', Icons.account_balance_wallet_outlined);
         
-        int totalDialokasikan = 0;
-        for (var div in divisiList) {
-          totalDialokasikan += (div['alokasi_budget'] as int);
-        }
-        int sisaBelumDialokasikan = _budgetAcara - totalDialokasikan;
+        return FutureBuilder<int>(
+          future: DatabaseHelper.instance.getGrandTotalPengeluaranByAcara(widget.idAcara),
+          builder: (context, grandTotalSnapshot) {
+            int totalPengeluaranNyata = grandTotalSnapshot.data ?? 0;
+            
+            int totalAlokasi = 0;
+            for (var div in divisiList) {
+              totalAlokasi += (div['alokasi_budget'] as int);
+            }
+            int sisaBelumDialokasikan = _budgetAcara - totalAlokasi;
 
-        return Column(
-          children: [
-            // 🔥 KARTU UTAMA RAB (TERMASUK DONUT CHART)
-            Container(
-              margin: const EdgeInsets.all(20), padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: _isDarkMode ? [const Color(0xFF374151), const Color(0xFF1F2937)] : [const Color(0xFF1E3A8A), const Color(0xFF2563EB)]),
-                borderRadius: BorderRadius.circular(24), boxShadow: [BoxShadow(color: navy.withValues(alpha: _isDarkMode ? 0.1 : 0.3), blurRadius: 15, offset: const Offset(0, 8))],
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(10), 
-                          decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(12)), 
-                          child: const Icon(Icons.account_balance_wallet, color: Colors.white, size: 24)
-                        ),
-                        const SizedBox(height: 16),
-                        const Text('Budget Utama Acara', style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w600)),
-                        Text(_isBalanceHidden ? 'Rp ••••••••' : formatRupiah(_budgetAcara), style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w900)),
-                        const SizedBox(height: 12),
-                        Row(
+            return Column(
+              children: [
+                Container(
+                  margin: const EdgeInsets.all(20), padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: _isDarkMode ? [const Color(0xFF374151), const Color(0xFF1F2937)] : [const Color(0xFF1E3A8A), const Color(0xFF2563EB)]),
+                    borderRadius: BorderRadius.circular(24), boxShadow: [BoxShadow(color: navy.withValues(alpha: _isDarkMode ? 0.1 : 0.3), blurRadius: 15, offset: const Offset(0, 8))],
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text('Dialokasikan', style: TextStyle(color: Colors.white70, fontSize: 10, fontWeight: FontWeight.bold)),
-                                Text(_isBalanceHidden ? 'Rp ••••••••' : formatRupiah(totalDialokasikan), style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)),
-                              ],
+                            Container(
+                              padding: const EdgeInsets.all(10), 
+                              decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(12)), 
+                              child: const Icon(Icons.account_balance_wallet, color: Colors.white, size: 24)
                             ),
-                            const SizedBox(width: 16),
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
+                            const SizedBox(height: 16),
+                            const Text('Budget Utama Acara', style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w600)),
+                            Text(_isBalanceHidden ? 'Rp ••••••••' : formatRupiah(_budgetAcara), style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w900)),
+                            const SizedBox(height: 12),
+                            Row(
                               children: [
-                                const Text('Sisa Dana', style: TextStyle(color: Colors.white70, fontSize: 10, fontWeight: FontWeight.bold)),
-                                Text(
-                                  _isBalanceHidden ? 'Rp ••••••••' : formatRupiah(sisaBelumDialokasikan), 
-                                  style: TextStyle(color: sisaBelumDialokasikan < 0 ? Colors.redAccent.shade100 : Colors.greenAccent.shade200, fontSize: 13, fontWeight: FontWeight.bold)
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Text('Dialokasikan', style: TextStyle(color: Colors.white70, fontSize: 10, fontWeight: FontWeight.bold)),
+                                    Text(_isBalanceHidden ? 'Rp ••••••••' : formatRupiah(totalAlokasi), style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)),
+                                  ],
+                                ),
+                                const SizedBox(width: 16),
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Text('Sisa Dana Acara', style: TextStyle(color: Colors.white70, fontSize: 10, fontWeight: FontWeight.bold)),
+                                    Text(
+                                      _isBalanceHidden ? 'Rp ••••••••' : formatRupiah(sisaBelumDialokasikan), 
+                                      style: TextStyle(color: sisaBelumDialokasikan < 0 ? Colors.redAccent.shade100 : Colors.greenAccent.shade200, fontSize: 13, fontWeight: FontWeight.bold)
+                                    ),
+                                  ],
                                 ),
                               ],
                             ),
                           ],
                         ),
-                      ],
-                    ),
-                  ),
-                  // 🔥 WIDGET CUSTOM DRAWING (DONUT CHART)
-                  BudgetDonutChart(
-                    totalBudget: _budgetAcara,
-                    terpakai: totalDialokasikan,
-                    isDarkMode: _isDarkMode,
-                  ),
-                ],
-              ),
-            ),
-            Padding(padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 4), child: Align(alignment: Alignment.centerLeft, child: Text('Rincian Dana per Divisi', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: titleTxtColor)))),
-            Expanded(
-              child: ListView.builder(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                physics: const BouncingScrollPhysics(),
-                itemCount: divisiList.length,
-                itemBuilder: (context, index) {
-                  final div = divisiList[index];
-                  return Container(
-                    margin: const EdgeInsets.only(bottom: 12),
-                    decoration: BoxDecoration(color: bgCard, borderRadius: BorderRadius.circular(16), boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: _isDarkMode ? 0.2 : 0.02), blurRadius: 8)]),
-                    child: Theme(
-                      data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
-                      child: ExpansionTile(
-                        tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                        collapsedIconColor: _isDarkMode ? Colors.white60 : Colors.grey, iconColor: _isDarkMode ? mint : navy,
-                        leading: Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: mint.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(12)), child: Icon(Icons.monetization_on_rounded, color: mint)),
-                        title: Text(div['nama_divisi'], style: TextStyle(fontWeight: FontWeight.bold, color: txtColor)),
-                        subtitle: FutureBuilder<int>(
-                          future: DatabaseHelper.instance.getTotalPengeluaranByDivisi(div['id']),
-                          builder: (context, totalSnapshot) {
-                            int totalTerpakai = totalSnapshot.data ?? 0;
-                            return Text(_isBalanceHidden ? 'Terpakai: Rp ••••••••' : 'Terpakai: ${formatRupiah(totalTerpakai)}', style: TextStyle(fontSize: 12, color: _isDarkMode ? Colors.white60 : Colors.blueGrey.shade600, fontWeight: FontWeight.w600));
-                          }
-                        ),
-                        trailing: FutureBuilder<int>(
-                          future: DatabaseHelper.instance.getTotalPengeluaranByDivisi(div['id']),
-                          builder: (context, sisaSnapshot) {
-                            final alokasi = (div['alokasi_budget'] as num).toInt();
-                            final terpakai = sisaSnapshot.data ?? 0;
-                            final sisa = alokasi - terpakai;
-                            final isOverBudget = alokasi > 0 && sisa < 0;
-                            return Column(
-                              mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.end,
-                              children: [
-                                Text(alokasi == 0 ? 'Alokasi' : 'Sisa Alokasi', style: const TextStyle(fontSize: 10, color: Colors.blueGrey, fontWeight: FontWeight.bold)),
-                                Text(alokasi == 0 ? 'Tak Dibatasi' : (_isBalanceHidden ? 'Rp ••••••••' : formatRupiah(sisa)), style: TextStyle(color: alokasi == 0 ? Colors.blueGrey : (isOverBudget ? Colors.red.shade600 : (_isDarkMode ? mint : navy)), fontWeight: FontWeight.w900, fontSize: 13)),
-                              ],
-                            );
-                          },
-                        ),
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.only(left: 16, right: 16, bottom: 16), width: double.infinity,
-                            decoration: BoxDecoration(color: innerContainerColor, borderRadius: const BorderRadius.vertical(bottom: Radius.circular(16))),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Divider(),
-                                const Padding(padding: EdgeInsets.symmetric(vertical: 8.0), child: Text('Riwayat Pengeluaran:', style: TextStyle(fontWeight: FontWeight.w800, color: Colors.blueGrey))),
-                                FutureBuilder<List<Map<String, dynamic>>>(
-                                  future: DatabaseHelper.instance.getPengeluaranByDivisi(div['id']),
-                                  builder: (context, pengeluaranSnapshot) {
-                                    if (!pengeluaranSnapshot.hasData) return const SizedBox.shrink();
-                                    final pengeluaranList = pengeluaranSnapshot.data!;
-                                    if (pengeluaranList.isEmpty) return const Padding(padding: EdgeInsets.only(bottom: 8.0), child: Text('Belum ada pengeluaran.', style: TextStyle(color: Colors.grey, fontStyle: FontStyle.italic)));
-
-                                    return Column(
-                                      children: pengeluaranList.map((p) {
-                                        final int jumlah = p['jumlah'] as int;
-                                        final int nominal = (p['nominal'] as num).toInt();
-                                        final int total = jumlah * nominal; 
-
-                                        return Container(
-                                          margin: const EdgeInsets.only(bottom: 8),
-                                          decoration: BoxDecoration(color: bgCard, borderRadius: BorderRadius.circular(8), border: Border.all(color: _isDarkMode ? Colors.blueGrey.shade800 : Colors.blueGrey.shade100)),
-                                          child: ListTile(
-                                            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                                            title: Text('[${p['tanggal']}] ${p['nama_barang']}', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14, color: txtColor)),
-                                            subtitle: Text(_isBalanceHidden ? '1 x Rp ••••••••' : '$jumlah x ${formatRupiah(nominal)}', style: TextStyle(fontSize: 12, color: _isDarkMode ? Colors.white60 : Colors.blueGrey.shade600, fontWeight: FontWeight.w600)),
-                                            trailing: Row(
-                                              mainAxisSize: MainAxisSize.min,
-                                              children: [
-                                                Text(_isBalanceHidden ? 'Rp ••••••••' : formatRupiah(total), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13, color: Colors.redAccent)),
-                                                if (_isKetuplak)
-                                                  PopupMenuButton<String>(
-                                                    icon: const Icon(Icons.more_vert, size: 20),
-                                                    onSelected: (value) async {
-                                                      if (value == 'edit') {
-                                                        _showUpdatePengeluaranDialog(p, div['nama_divisi']);
-                                                      } else if (value == 'delete') {
-                                                        final confirm = await showDialog<bool>(
-                                                          context: context, builder: (dialogCtx) => AlertDialog(
-                                                            title: const Text('Hapus Pengeluaran', style: TextStyle(fontWeight: FontWeight.bold)),
-                                                            content: Text('Hapus pengeluaran "${p['nama_barang']}"?'),
-                                                            actions: [
-                                                              TextButton(onPressed: () => Navigator.pop(dialogCtx, false), child: const Text('Batal')),
-                                                              ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.red.shade400), onPressed: () => Navigator.pop(dialogCtx, true), child: const Text('Hapus', style: TextStyle(color: Colors.white))),
-                                                            ],
-                                                          ),
-                                                        );
-                                                        if (confirm == true) { await DatabaseHelper.instance.deletePengeluaran(p['id']); if (mounted) setState(() {}); }
-                                                      }
-                                                    },
-                                                    itemBuilder: (context) => const [PopupMenuItem(value: 'edit', child: Text('Edit Data')), PopupMenuItem(value: 'delete', child: Text('Void (Hapus)', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)))],
-                                                  ),
-                                              ],
-                                            ),
-                                          ),
-                                        );
-                                      }).toList(),
-                                    );
-                                  },
-                                ),
-                                if (_isKetuplak)
-                                  Align(
-                                    alignment: Alignment.centerRight,
-                                    child: TextButton.icon(onPressed: () => _showAddPengeluaranDialog(div['id'], div['nama_divisi']), icon: Icon(Icons.add_shopping_cart, color: mint, size: 18), label: Text('Tambah Pengeluaran', style: TextStyle(color: mint, fontWeight: FontWeight.bold))),
-                                  ),
-                              ],
-                            ),
-                          ),
-                        ],
                       ),
-                    ),
-                  );
-                },
-              ),
-            ),
-          ],
+                      BudgetDonutChart(
+                        totalBudget: _budgetAcara,
+                        terpakai: totalPengeluaranNyata,
+                        isDarkMode: _isDarkMode,
+                      ),
+                    ],
+                  ),
+                ),
+                Padding(padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 4), child: Align(alignment: Alignment.centerLeft, child: Text('Rincian Dana per Divisi', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: titleTxtColor)))),
+                Expanded(
+                  child: ListView.builder(
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                    physics: const BouncingScrollPhysics(),
+                    itemCount: divisiList.length,
+                    itemBuilder: (context, index) {
+                      final div = divisiList[index];
+                      return Container(
+                        margin: const EdgeInsets.only(bottom: 12),
+                        decoration: BoxDecoration(color: bgCard, borderRadius: BorderRadius.circular(16), boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: _isDarkMode ? 0.2 : 0.02), blurRadius: 8)]),
+                        child: Theme(
+                          data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+                          child: ExpansionTile(
+                            tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                            collapsedIconColor: _isDarkMode ? Colors.white60 : Colors.grey, iconColor: _isDarkMode ? mint : navy,
+                            leading: Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: mint.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(12)), child: Icon(Icons.monetization_on_rounded, color: mint)),
+                            title: Text(div['nama_divisi'], style: TextStyle(fontWeight: FontWeight.bold, color: txtColor)),
+                            subtitle: FutureBuilder<int>(
+                              future: DatabaseHelper.instance.getTotalPengeluaranByDivisi(div['id']),
+                              builder: (context, totalSnapshot) {
+                                int totalTerpakaiDivisi = totalSnapshot.data ?? 0;
+                                return Text(_isBalanceHidden ? 'Terpakai: Rp ••••••••' : 'Terpakai: ${formatRupiah(totalTerpakaiDivisi)}', style: TextStyle(fontSize: 12, color: _isDarkMode ? Colors.white60 : Colors.blueGrey.shade600, fontWeight: FontWeight.w600));
+                              }
+                            ),
+                            trailing: FutureBuilder<int>(
+                              future: DatabaseHelper.instance.getTotalPengeluaranByDivisi(div['id']),
+                              builder: (context, sisaSnapshot) {
+                                final alokasi = (div['alokasi_budget'] as num).toInt();
+                                final terpakai = sisaSnapshot.data ?? 0;
+                                final sisa = alokasi - terpakai;
+                                final isOverBudget = alokasi > 0 && sisa < 0;
+                                return Column(
+                                  mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.end,
+                                  children: [
+                                    Text(alokasi == 0 ? 'Alokasi' : 'Sisa Alokasi', style: const TextStyle(fontSize: 10, color: Colors.blueGrey, fontWeight: FontWeight.bold)),
+                                    Text(alokasi == 0 ? 'Tak Dibatasi' : (_isBalanceHidden ? 'Rp ••••••••' : formatRupiah(sisa)), style: TextStyle(color: alokasi == 0 ? Colors.blueGrey : (isOverBudget ? Colors.red.shade600 : (_isDarkMode ? mint : navy)), fontWeight: FontWeight.w900, fontSize: 13)),
+                                  ],
+                                );
+                              },
+                            ),
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.only(left: 16, right: 16, bottom: 16), width: double.infinity,
+                                decoration: BoxDecoration(color: innerContainerColor, borderRadius: const BorderRadius.vertical(bottom: Radius.circular(16))),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Divider(),
+                                    const Padding(padding: EdgeInsets.symmetric(vertical: 8.0), child: Text('Riwayat Pengeluaran:', style: TextStyle(fontWeight: FontWeight.w800, color: Colors.blueGrey))),
+                                    FutureBuilder<List<Map<String, dynamic>>>(
+                                      future: DatabaseHelper.instance.getPengeluaranByDivisi(div['id']),
+                                      builder: (context, pengeluaranSnapshot) {
+                                        if (!pengeluaranSnapshot.hasData) return const SizedBox.shrink();
+                                        final pengeluaranList = pengeluaranSnapshot.data!;
+                                        if (pengeluaranList.isEmpty) return const Padding(padding: EdgeInsets.only(bottom: 8.0), child: Text('Belum ada pengeluaran.', style: TextStyle(color: Colors.grey, fontStyle: FontStyle.italic)));
+
+                                        return Column(
+                                          children: pengeluaranList.map((p) {
+                                            final int jumlah = p['jumlah'] as int;
+                                            final int nominal = (p['nominal'] as num).toInt();
+                                            final int total = jumlah * nominal; 
+
+                                            return Container(
+                                              margin: const EdgeInsets.only(bottom: 8),
+                                              decoration: BoxDecoration(color: bgCard, borderRadius: BorderRadius.circular(8), border: Border.all(color: _isDarkMode ? Colors.blueGrey.shade800 : Colors.blueGrey.shade100)),
+                                              child: ListTile(
+                                                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                                                title: Text('[${p['tanggal']}] ${p['nama_barang']}', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14, color: txtColor)),
+                                                subtitle: Text(_isBalanceHidden ? '1 x Rp ••••••••' : '$jumlah x ${formatRupiah(nominal)}', style: TextStyle(fontSize: 12, color: _isDarkMode ? Colors.white60 : Colors.blueGrey.shade600, fontWeight: FontWeight.w600)),
+                                                trailing: Row(
+                                                  mainAxisSize: MainAxisSize.min,
+                                                  children: [
+                                                    Text(_isBalanceHidden ? 'Rp ••••••••' : formatRupiah(total), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13, color: Colors.redAccent)),
+                                                    if (_isKetuplak)
+                                                      PopupMenuButton<String>(
+                                                        icon: const Icon(Icons.more_vert, size: 20),
+                                                        onSelected: (value) async {
+                                                          if (value == 'edit') {
+                                                            _showUpdatePengeluaranDialog(p, div['nama_divisi']);
+                                                          } else if (value == 'delete') {
+                                                            final confirm = await showDialog<bool>(
+                                                              context: context, builder: (dialogCtx) => AlertDialog(
+                                                                title: const Text('Hapus Pengeluaran', style: TextStyle(fontWeight: FontWeight.bold)),
+                                                                content: Text('Hapus pengeluaran "${p['nama_barang']}"?'),
+                                                                actions: [
+                                                                  TextButton(onPressed: () => Navigator.pop(dialogCtx, false), child: const Text('Batal')),
+                                                                  ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.red.shade400), onPressed: () => Navigator.pop(dialogCtx, true), child: const Text('Hapus', style: TextStyle(color: Colors.white))),
+                                                                ],
+                                                              ),
+                                                            );
+                                                            if (confirm == true) { await DatabaseHelper.instance.deletePengeluaran(p['id']); if (mounted) setState(() {}); }
+                                                          }
+                                                        },
+                                                        itemBuilder: (context) => const [PopupMenuItem(value: 'edit', child: Text('Edit Data')), PopupMenuItem(value: 'delete', child: Text('Void (Hapus)', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)))],
+                                                      ),
+                                                  ],
+                                                ),
+                                              ),
+                                            );
+                                          }).toList(),
+                                        );
+                                      },
+                                    ),
+                                    if (_isKetuplak)
+                                      Align(
+                                        alignment: Alignment.centerRight,
+                                        child: TextButton.icon(onPressed: () => _showAddPengeluaranDialog(div['id'], div['nama_divisi']), icon: Icon(Icons.add_shopping_cart, color: mint, size: 18), label: Text('Tambah Pengeluaran', style: TextStyle(color: mint, fontWeight: FontWeight.bold))),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            );
+          }
         );
       },
     );
@@ -1111,7 +1202,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
   }
 }
 
-// 🔥 WIDGET CUSTOM DRAWING UNTUK DIAGRAM DONAT 🔥
+// 🔥 WIDGET CUSTOM DRAWING UNTUK DIAGRAM DONAT
 class BudgetDonutChart extends StatelessWidget {
   final int totalBudget;
   final int terpakai;

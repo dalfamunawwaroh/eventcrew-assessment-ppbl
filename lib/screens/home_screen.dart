@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:lottie/lottie.dart'; // 🔥 IMPORT BARU: Lottie Animation
 import '../helpers/database_helper.dart';
 import '../helpers/prefs_helper.dart';
 import 'event_detail_screen.dart';
@@ -36,7 +37,6 @@ class _HomeScreenState extends State<HomeScreen> {
     _refreshAcaraList();
   }
 
-  // 🔥 LOGIKA BARU: FILTER EVENT SESUAI USER DAN CEK STATUS PENDING
   void _refreshAcaraList() async {
     final semuaAcara = await DatabaseHelper.instance.getSemuaAcara();
     
@@ -55,10 +55,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
       for (var div in divisiList) {
         String namaDiv = div['nama_divisi'].toString();
-        // Cek apakah username login ada di dalam divisi project ini
         if (namaDiv.contains(savedName)) {
           isMember = true;
-          idDivisiUser = div['id']; // Simpan ID divisi untuk keperluan Accept/Decline
+          idDivisiUser = div['id']; 
           
           if (namaDiv.startsWith('Inti (Ketuplak:')) {
             memberStatus = 'Ketuplak';
@@ -71,14 +70,12 @@ class _HomeScreenState extends State<HomeScreen> {
         }
       }
 
-      // Jika user termasuk bagian dari acara ini, masukkan ke dalam list Home
       if (isMember) {
         var acaraWithRole = Map<String, dynamic>.from(acara);
         acaraWithRole['user_role_status'] = memberStatus;
-        acaraWithRole['id_divisi_user'] = idDivisiUser; // Bawa data ID divisi
+        acaraWithRole['id_divisi_user'] = idDivisiUser; 
         userAcaraList.add(acaraWithRole);
 
-        // Hanya hitung ke Grand Total Budget jika user adalah Ketuplak di acara tsb
         if (memberStatus == 'Ketuplak') {
           totalBudget += (acara['budget_total'] as int? ?? 0);
         }
@@ -232,6 +229,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     }
 
                     await DatabaseHelper.instance.insertAcara({'nama_acara': nama, 'tanggal_acara': tanggal, 'budget_total': int.parse(rawBudget)});
+                    await PrefsHelper.setUserRole('Ketuplak');
                     _refreshAcaraList();
                     if (bottomSheetContext.mounted) Navigator.pop(bottomSheetContext);
                   },
@@ -274,7 +272,26 @@ class _HomeScreenState extends State<HomeScreen> {
           _buildCustomHeader(),
           Expanded(
             child: _acaraList.isEmpty 
-                ? Center(child: Text('Belum ada acara aktif. Mari buat baru!', style: TextStyle(color: _isDarkMode ? Colors.white60 : Colors.black54, fontWeight: FontWeight.w600)))
+                // 🔥 LOGIKA LOTTIE: Dipanggil saat _acaraList kosong 🔥
+                ? Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Lottie.asset(
+                          'assets/lottie/No Item Found.json', // 🔥 UPDATE NAMA FILE 
+                          width: 200,
+                          height: 200,
+                          fit: BoxFit.contain,
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'Belum ada acara aktif. Mari buat baru!', 
+                          style: TextStyle(color: _isDarkMode ? Colors.white60 : Colors.black54, fontWeight: FontWeight.w600, fontSize: 14)
+                        ),
+                      ],
+                    ),
+                  )
+                // Jika ada isinya, render list seperti biasa
                 : ListView.builder(
                     padding: const EdgeInsets.only(top: 16, left: 20, right: 20, bottom: 100),
                     physics: const BouncingScrollPhysics(),
@@ -359,7 +376,6 @@ class _HomeScreenState extends State<HomeScreen> {
                   const SizedBox(width: 12),
                   GestureDetector(
                     onTap: () async {
-                      // 🔥 FIX 4: Gunakan await untuk memastikan halaman ProfilePage tertutup sebelum merefresh data
                       await Navigator.push(context, MaterialPageRoute(builder: (context) => const ProfilePage()));
                       if (mounted) _refreshAcaraList(); 
                     },
