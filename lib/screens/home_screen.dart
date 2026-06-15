@@ -22,7 +22,7 @@ class _HomeScreenState extends State<HomeScreen> {
   final Color softIce = const Color(0xFFEEF2F6);
 
   List<Map<String, dynamic>> _acaraList = [];
-  late final String _userName; 
+  late String _userName; 
   String _role = PrefsHelper.userRole;
   bool _isDarkMode = PrefsHelper.isDarkMode;
   bool _isBalanceHidden = PrefsHelper.isBalanceHidden; // Deklarasi variabel SHARED PREFERENCES UNTUK MENYIMPAN STATUS BALANCE HIDDEN
@@ -349,13 +349,15 @@ class _HomeScreenState extends State<HomeScreen> {
                       Navigator.push(
                         context,
                         MaterialPageRoute(builder: (context) => const ProfilePage()),
-                      ).then((_) {
-                        setState(() {
-                          _userName = PrefsHelper.userName;
-                          _role = PrefsHelper.userRole;
-                          final photo = PrefsHelper.userProfilePhoto;
-                          _profilePhotoPath = photo.isEmpty ? null : photo;
-                        });
+                      ).then((isChanged) {
+                        if (isChanged == true) {
+                          setState(() {
+                            _userName = PrefsHelper.userName;
+                            _role = PrefsHelper.userRole;
+                            final photo = PrefsHelper.userProfilePhoto;
+                            _profilePhotoPath = photo.isEmpty ? null : photo;
+                          });
+                        }
                       });
                     },
                     child: CircleAvatar(

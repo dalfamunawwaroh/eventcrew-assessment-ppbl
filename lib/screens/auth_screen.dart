@@ -241,8 +241,18 @@ class _AuthScreenState extends State<AuthScreen> {
               } else if (savedPass != password) {
                 ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Password salah! Coba lagi.'), backgroundColor: Colors.redAccent));
               } else {
+                await PrefsHelper.setCurrentUsername(username);
                 await PrefsHelper.setUserName(savedName); 
-                await PrefsHelper.setUserRole('Anggota'); 
+                
+                String? savedRole = prefs.getString('simulasi_role_$username');
+                await PrefsHelper.setUserRole(savedRole ?? 'Anggota'); 
+
+                String? savedPhoto = prefs.getString('simulasi_photo_$username');
+                if (savedPhoto != null && savedPhoto.isNotEmpty) {
+                  await PrefsHelper.setUserProfilePhoto(savedPhoto);
+                } else {
+                  await PrefsHelper.deleteUserProfilePhoto();
+                }
 
                 ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Selamat datang kembali, $savedName!'), backgroundColor: mintGreen));
                 Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const HomeScreen()));
@@ -315,8 +325,10 @@ class _AuthScreenState extends State<AuthScreen> {
               await prefs.setString('simulasi_nama_$username', name);
               await prefs.setString('simulasi_pass_$username', password);
 
+              await PrefsHelper.setCurrentUsername(username);
               await PrefsHelper.setUserName(name);
               await PrefsHelper.setUserRole('Anggota'); 
+              await PrefsHelper.deleteUserProfilePhoto();
 
               if (mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Pendaftaran berhasil! Selamat datang, $name!'), backgroundColor: mintGreen));

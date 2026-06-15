@@ -7,9 +7,18 @@ class PrefsHelper {
     _prefs = await SharedPreferences.getInstance();
   }
 
-  // 1. Key: Nama User (Default: Sunghoon)
+  // 0. Key: Current Logged In Username ID
+  static String get currentUsername => _prefs.getString('current_username') ?? '';
+  static Future<void> setCurrentUsername(String value) async => await _prefs.setString('current_username', value);
+
+  // 1. Key: Nama User
   static String get userName => _prefs.getString('user_name') ?? 'Sunghoon';
-  static Future<void> setUserName(String value) async => await _prefs.setString('user_name', value);
+  static Future<void> setUserName(String value) async {
+    await _prefs.setString('user_name', value);
+    if (currentUsername.isNotEmpty) {
+      await _prefs.setString('simulasi_nama_$currentUsername', value);
+    }
+  }
 
   // 2. Key: Sensor Saldo (Default: false)
   static bool get isBalanceHidden => _prefs.getBool('is_balance_hidden') ?? false;
@@ -19,12 +28,27 @@ class PrefsHelper {
   static bool get isDarkMode => _prefs.getBool('theme_mode') ?? false;
   static Future<void> setDarkMode(bool value) async => await _prefs.setBool('theme_mode', value);
 
-  // 4. Key: User Role (Default: General)
-  static String get userRole => _prefs.getString('user_role') ?? 'General';
-  static Future<void> setUserRole(String value) async => await _prefs.setString('user_role', value);
+  // 4. Key: User Role
+  static String get userRole => _prefs.getString('user_role') ?? 'Anggota';
+  static Future<void> setUserRole(String value) async {
+    await _prefs.setString('user_role', value);
+    if (currentUsername.isNotEmpty) {
+      await _prefs.setString('simulasi_role_$currentUsername', value);
+    }
+  }
 
   // 5. Key: User Profile Photo Path
   static String get userProfilePhoto => _prefs.getString('user_profile_photo') ?? '';
-  static Future<void> setUserProfilePhoto(String value) async => await _prefs.setString('user_profile_photo', value);
-  static Future<void> deleteUserProfilePhoto() async => await _prefs.remove('user_profile_photo');
+  static Future<void> setUserProfilePhoto(String value) async {
+    await _prefs.setString('user_profile_photo', value);
+    if (currentUsername.isNotEmpty) {
+      await _prefs.setString('simulasi_photo_$currentUsername', value);
+    }
+  }
+  static Future<void> deleteUserProfilePhoto() async {
+    await _prefs.remove('user_profile_photo');
+    if (currentUsername.isNotEmpty) {
+      await _prefs.remove('simulasi_photo_$currentUsername');
+    }
+  }
 }

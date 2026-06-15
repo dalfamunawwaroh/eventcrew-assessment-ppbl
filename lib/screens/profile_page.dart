@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import '../helpers/prefs_helper.dart';
+import 'landing_page.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -53,7 +54,7 @@ class _ProfilePageState extends State<ProfilePage> {
         
         // Kembali ke halaman sebelumnya agar perubahan langsung ter-update di home screen
         Future.delayed(const Duration(milliseconds: 500), () {
-          if (mounted) Navigator.pop(context);
+          if (mounted) Navigator.pop(context, true);
         });
       }
     } catch (e) {
@@ -102,22 +103,71 @@ class _ProfilePageState extends State<ProfilePage> {
   /// Helper function untuk melakukan delete
   Future<void> _performDelete() async {
     try {
-      // Reset nama ke default
+      // Reset nama dan role ke default
       await PrefsHelper.setUserName('Pengguna');
+      await PrefsHelper.setUserRole('Anggota');
       // Hapus foto profil
       await PrefsHelper.deleteUserProfilePhoto();
 
       if (mounted) {
         _showSuccessSnackBar('Data profil berhasil dihapus!');
         
-        // Kembali ke halaman sebelumnya
+        // Kembali ke halaman sebelumnya dengan parameter true
         Future.delayed(const Duration(milliseconds: 500), () {
-          if (mounted) Navigator.pop(context);
+          if (mounted) Navigator.pop(context, true);
         });
       }
     } catch (e) {
       _showErrorSnackBar('Gagal menghapus profil: $e');
     }
+  }
+
+  /// LOGOUT: Menghapus sesi dan kembali ke landing page
+  Future<void> _performLogout() async {
+    showDialog(
+      context: context,
+      builder: (BuildContext dialogContext) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text(
+          'Keluar Aplikasi?',
+          style: TextStyle(color: Color(0xFF1E3A8A), fontWeight: FontWeight.bold),
+        ),
+        content: const Text(
+          'Anda akan keluar dari sesi saat ini. Apakah Anda yakin?',
+          style: TextStyle(color: Colors.black87, fontSize: 14),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Batal', style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFEF6B6B),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            onPressed: () async {
+              Navigator.pop(dialogContext); // Tutup dialog
+              
+              // Hapus sesi saat ini tanpa menghapus data asli akun
+              await PrefsHelper.setCurrentUsername('');
+              await PrefsHelper.setUserName('Pengguna');
+              await PrefsHelper.setUserRole('Anggota');
+              await PrefsHelper.deleteUserProfilePhoto();
+              
+              if (mounted) {
+                Navigator.pushAndRemoveUntil(
+                  context,
+                  MaterialPageRoute(builder: (context) => const LandingPage()),
+                  (route) => false,
+                );
+              }
+            },
+            child: const Text('Logout', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
   }
 
   /// Helper function untuk menampilkan SnackBar sukses
@@ -203,8 +253,17 @@ class _ProfilePageState extends State<ProfilePage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: SingleChildScrollView(
+    return PopScope(
+      canPop: false,
+      onPopInvoked: (bool didPop) async {
+        if (didPop) return;
+        await PrefsHelper.setUserName(_nameController.text);
+        if (context.mounted) {
+          Navigator.pop(context, true);
+        }
+      },
+      child: Scaffold(
+        body: SingleChildScrollView(
         child: Column(
           children: [
             /// ============== HEADER SECTION (BLUE GRADIENT) ==============
@@ -221,9 +280,30 @@ class _ProfilePageState extends State<ProfilePage> {
                 ),
               ),
               padding: const EdgeInsets.only(top: 40, bottom: 40, left: 24, right: 24),
-              child: Column(
+              child: Stack(
                 children: [
-                  /// Avatar dengan Foto Profil atau Inisial
+                  // Tombol Back di pojok kiri atas
+                  Align(
+                    alignment: Alignment.topLeft,
+                    child: IconButton(
+                      icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white),
+                      onPressed: () async {
+                        // Pastikan state atau data nama terbaru tersimpan ke SharedPreferences
+                        await PrefsHelper.setUserName(_nameController.text);
+                        // Status (_currentRole) tidak berubah di sini, jadi tetap aman.
+                        
+                        if (context.mounted) {
+                          Navigator.pop(context, true);
+                        }
+                      },
+                    ),
+                  ),
+                  // Konten utama header
+                  SizedBox(
+                    width: double.infinity,
+                    child: Column(
+                      children: [
+                        /// Avatar dengan Foto Profil atau Inisial
                   Container(
                     width: 100,
                     height: 100,
@@ -303,6 +383,9 @@ class _ProfilePageState extends State<ProfilePage> {
                 ],
               ),
             ),
+          ],
+        ),
+      ),
 
             /// ============== CONTENT SECTION (WHITE BACKGROUND) ==============
             Container(
@@ -442,12 +525,39 @@ class _ProfilePageState extends State<ProfilePage> {
                       ),
                     ),
                   ),
+                  const SizedBox(height: 16),
+
+                  /// Tombol Logout
+                  SizedBox(
+                    width: double.infinity,
+                    height: 50,
+                    child: ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.grey[800], // Warna abu-abu gelap
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        elevation: 0,
+                      ),
+                      onPressed: _performLogout,
+                      icon: const Icon(Icons.logout, color: Colors.white),
+                      label: const Text(
+                        'Logout',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ),
                   const SizedBox(height: 24),
                 ],
               ),
             ),
           ],
         ),
+      ),
       ),
     );
   }
