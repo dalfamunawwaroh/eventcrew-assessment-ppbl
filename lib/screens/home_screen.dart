@@ -45,6 +45,7 @@ class _HomeScreenState extends State<HomeScreen> {
     
     // Refresh Data Akun
     String savedName = PrefsHelper.userName;
+    String loginUsername = PrefsHelper.currentUsername; // ID login konstan (contoh: 'ervan')
     String savedPhoto = PrefsHelper.userProfilePhoto;
     
     List<Map<String, dynamic>> userAcaraList = [];
@@ -58,9 +59,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
       for (var div in divisiList) {
         String namaDiv = div['nama_divisi'].toString();
-        // Cek apakah username login ada di dalam divisi project ini
-        // 🔥 FIX 2: Gunakan savedName untuk filter yang lebih akurat
-        if (namaDiv.contains(savedName)) {
+        
+        // 🔥 SOLUSI UTAMA: Cek berdasarkan Nama Tampilan ATAU ID Login Permanen agar data TIDAK HILANG saat ganti nama profil
+        if (namaDiv.contains(savedName) || (loginUsername.isNotEmpty && namaDiv.contains(loginUsername))) {
           isMember = true;
           idDivisiUser = div['id']; // Simpan ID divisi untuk keperluan Accept/Decline
           
@@ -365,13 +366,18 @@ class _HomeScreenState extends State<HomeScreen> {
                   const SizedBox(width: 12),
                   GestureDetector(
                     onTap: () {
+                      // 🔥 FIX TUTUP KURUNG SINTAKS: Membuka ProfilePage dan merefresh state & list acara secara bersih saat kembali
                       Navigator.push(
                         context,
                         MaterialPageRoute(builder: (context) => const ProfilePage()),
-                      ).then((isChanged) {
-                        if (isChanged == true) {
-                          _refreshAcaraList();
-                        }
+                      ).then((_) {
+                        setState(() {
+                          _userName = PrefsHelper.userName;
+                          _role = PrefsHelper.userRole;
+                          final photo = PrefsHelper.userProfilePhoto;
+                          _profilePhotoPath = photo.isEmpty ? null : photo;
+                        });
+                        _refreshAcaraList(); 
                       });
                     },
                     child: CircleAvatar(
@@ -459,6 +465,7 @@ class _HomeScreenState extends State<HomeScreen> {
         },
         child: Padding(
           padding: const EdgeInsets.all(20),
+          // Perubahan dalam card dibatasi hanya agar aman dibaca
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
