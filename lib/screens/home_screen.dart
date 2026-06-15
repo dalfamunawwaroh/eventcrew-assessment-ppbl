@@ -22,11 +22,13 @@ class _HomeScreenState extends State<HomeScreen> {
   final Color softIce = const Color(0xFFEEF2F6);
 
   List<Map<String, dynamic>> _acaraList = [];
-  late final String _userName; 
+  late String _userName; 
   String _role = PrefsHelper.userRole;
   bool _isDarkMode = PrefsHelper.isDarkMode;
-  bool _isBalanceHidden = PrefsHelper.isBalanceHidden; // Deklarasi variabel SHARED PREFERENCES UNTUK MENYIMPAN STATUS BALANCE HIDDEN
-  String? _profilePhotoPath = PrefsHelper.userProfilePhoto.isEmpty ? null : PrefsHelper.userProfilePhoto; // Foto profil pengguna
+  bool _isBalanceHidden = PrefsHelper.isBalanceHidden; 
+  
+  // 🔥 FIX 1: Kosongkan dulu di awal, akan di-load di dalam fungsi
+  String? _profilePhotoPath; 
 
   int _grandTotalBudget = 0;
 
@@ -37,17 +39,61 @@ class _HomeScreenState extends State<HomeScreen> {
     _refreshAcaraList();
   }
 
+  // 🔥 LOGIKA BARU: FILTER EVENT SESUAI USER DAN CEK STATUS PENDING
   void _refreshAcaraList() async {
-    final data = await DatabaseHelper.instance.getSemuaAcara();
+    final semuaAcara = await DatabaseHelper.instance.getSemuaAcara();
     
+    // Refresh Data Akun
+    String savedName = PrefsHelper.userName;
+    String savedPhoto = PrefsHelper.userProfilePhoto;
+    
+    List<Map<String, dynamic>> userAcaraList = [];
     int totalBudget = 0;
-    for (var acara in data) {
-      totalBudget += (acara['budget_total'] as int? ?? 0);
+
+    for (var acara in semuaAcara) {
+      final divisiList = await DatabaseHelper.instance.getDivisiByAcara(acara['id']);
+      bool isMember = false;
+      String memberStatus = ''; 
+      int idDivisiUser = 0;
+
+      for (var div in divisiList) {
+        String namaDiv = div['nama_divisi'].toString();
+        // Cek apakah username login ada di dalam divisi project ini
+        // 🔥 FIX 2: Gunakan savedName untuk filter yang lebih akurat
+        if (namaDiv.contains(savedName)) {
+          isMember = true;
+          idDivisiUser = div['id']; // Simpan ID divisi untuk keperluan Accept/Decline
+          
+          if (namaDiv.startsWith('Inti (Ketuplak:')) {
+            memberStatus = 'Ketuplak';
+          } else if (namaDiv.startsWith('Anggota (Pending):')) {
+            memberStatus = 'Pending';
+          } else if (namaDiv.startsWith('Anggota:')) {
+            memberStatus = 'Accepted';
+          }
+          break;
+        }
+      }
+
+      // Jika user termasuk bagian dari acara ini, masukkan ke dalam list Home
+      if (isMember) {
+        var acaraWithRole = Map<String, dynamic>.from(acara);
+        acaraWithRole['user_role_status'] = memberStatus;
+        acaraWithRole['id_divisi_user'] = idDivisiUser; // Bawa data ID divisi
+        userAcaraList.add(acaraWithRole);
+
+        // Hanya hitung ke Grand Total Budget jika user adalah Ketuplak di acara tsb
+        if (memberStatus == 'Ketuplak') {
+          totalBudget += (acara['budget_total'] as int? ?? 0);
+        }
+      }
     }
 
     if (mounted) {
       setState(() {
-        _acaraList = data;
+        _userName = savedName; // Pastikan nama ter-update
+        _profilePhotoPath = savedPhoto.isNotEmpty ? savedPhoto : null; // Pastikan foto ter-update
+        _acaraList = userAcaraList;
         _grandTotalBudget = totalBudget; 
       });
     }
@@ -64,39 +110,18 @@ class _HomeScreenState extends State<HomeScreen> {
         return AlertDialog(
           backgroundColor: _isDarkMode ? const Color(0xFF1E293B) : Colors.white,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-          title: Text(
-            'Hapus Acara?',
-            style: TextStyle(color: _isDarkMode ? Colors.white : navyPrimary, fontWeight: FontWeight.w900, letterSpacing: -0.5),
-          ),
-          content: Text(
-            'Tindakan ini permanen. Semua data divisi, tugas, dan kuitansi di dalam "$namaAcara" akan dihapus bersih.',
-            style: TextStyle(color: _isDarkMode ? Colors.blueGrey.shade300 : Colors.grey.shade600, fontSize: 14),
-          ),
+          title: Text('Hapus Acara?', style: TextStyle(color: _isDarkMode ? Colors.white : navyPrimary, fontWeight: FontWeight.w900, letterSpacing: -0.5)),
+          content: Text('Tindakan ini permanen. Semua data divisi, tugas, dan kuitansi di dalam "$namaAcara" akan dihapus bersih.', style: TextStyle(color: _isDarkMode ? Colors.blueGrey.shade300 : Colors.grey.shade600, fontSize: 14)),
           actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: Text('Batal', style: TextStyle(color: Colors.grey.shade500, fontWeight: FontWeight.bold)),
-            ),
+            TextButton(onPressed: () => Navigator.pop(dialogContext), child: Text('Batal', style: TextStyle(color: Colors.grey.shade500, fontWeight: FontWeight.bold))),
             ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.redAccent,
-                elevation: 0,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-              ),
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent, elevation: 0, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
               onPressed: () async {
                 Navigator.pop(dialogContext);
                 await DatabaseHelper.instance.deleteAcara(idAcara);
                 _refreshAcaraList();
-                
                 if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('"$namaAcara" berhasil dihapus'),
-                      backgroundColor: Colors.redAccent,
-                      behavior: SnackBarBehavior.floating,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    ),
-                  );
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('"$namaAcara" berhasil dihapus'), backgroundColor: Colors.redAccent, behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))));
                 }
               },
               child: const Text('Ya, Hapus', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
@@ -104,6 +129,49 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
         );
       },
+    );
+  }
+
+  void _showPendingInviteDialog(Map<String, dynamic> acara) {
+    showDialog(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        backgroundColor: _isDarkMode ? const Color(0xFF1E293B) : Colors.white,
+        title: Row(
+          children: [
+            const Icon(Icons.mail_outline_rounded, color: Colors.orangeAccent),
+            const SizedBox(width: 8),
+            Text('Undangan Tim', style: TextStyle(fontWeight: FontWeight.w900, color: _isDarkMode ? Colors.white : navyDark, fontSize: 18)),
+          ],
+        ),
+        content: Text('Anda diundang untuk menjadi anggota di event "${acara['nama_acara']}". Apakah Anda ingin bergabung?', style: TextStyle(fontSize: 14, color: _isDarkMode ? Colors.white70 : Colors.blueGrey)),
+        actions: [
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(dialogCtx);
+              await DatabaseHelper.instance.deleteDivisi(acara['id_divisi_user']);
+              _refreshAcaraList();
+            },
+            child: const Text('Tolak', style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: mintGreen, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+            onPressed: () async {
+              Navigator.pop(dialogCtx);
+              await DatabaseHelper.instance.updateDivisiWithValidasi(
+                acara['id_divisi_user'], 
+                acara['id'], 
+                'Anggota: $_userName', 
+                0 
+              );
+              _refreshAcaraList();
+              if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Berhasil bergabung dengan tim!'), backgroundColor: Colors.green));
+            },
+            child: const Text('Terima', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      )
     );
   }
 
@@ -121,28 +189,18 @@ class _HomeScreenState extends State<HomeScreen> {
         final Color textCol = _isDarkMode ? Colors.white : navyDark;
 
         return Container(
-          padding: EdgeInsets.only(
-            bottom: MediaQuery.of(bottomSheetContext).viewInsets.bottom + 28,
-            left: 28, right: 28, top: 32,
-          ),
-          decoration: BoxDecoration(
-            color: formBg,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(36)),
-          ),
+          padding: EdgeInsets.only(bottom: MediaQuery.of(bottomSheetContext).viewInsets.bottom + 28, left: 28, right: 28, top: 32),
+          decoration: BoxDecoration(color: formBg, borderRadius: const BorderRadius.vertical(top: Radius.circular(36))),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                'Buat Acara Baru ✨', 
-                style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: textCol, letterSpacing: -0.5)
-              ),
+              Text('Buat Acara Baru ✨', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: textCol, letterSpacing: -0.5)),
               const SizedBox(height: 24),
               _buildFormTextField(controller: namaController, label: 'Nama Acara/Project', icon: Icons.event_note_rounded),
               const SizedBox(height: 16),
               _buildFormTextField(controller: budgetController, label: 'Target Anggaran (RAB)', icon: Icons.account_balance_wallet_rounded, isNumber: true),
               const SizedBox(height: 16),
-              
               TextField(
                 controller: tanggalController,
                 readOnly: true,
@@ -157,62 +215,31 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
                 onTap: () async {
                   final now = DateTime.now();
-                  final picked = await showDatePicker(
-                    context: bottomSheetContext,
-                    initialDate: now,
-                    firstDate: now,
-                    lastDate: DateTime(now.year + 5),
-                  );
-                  if (picked != null) {
-                    tanggalController.text = picked.toIso8601String().split('T')[0];
-                  }
+                  final picked = await showDatePicker(context: bottomSheetContext, initialDate: now, firstDate: now, lastDate: DateTime(now.year + 5));
+                  if (picked != null) tanggalController.text = picked.toIso8601String().split('T')[0];
                 },
               ),
               const SizedBox(height: 32),
-              
               Container(
-                width: double.infinity,
-                height: 54,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(16),
-                  gradient: LinearGradient(colors: _isDarkMode ? [mintGreen, const Color(0xFF059669)] : [electricBlue, navyPrimary]),
-                ),
+                width: double.infinity, height: 54,
+                decoration: BoxDecoration(borderRadius: BorderRadius.circular(16), gradient: LinearGradient(colors: _isDarkMode ? [mintGreen, const Color(0xFF059669)] : [electricBlue, navyPrimary])),
                 child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.transparent, 
-                    shadowColor: Colors.transparent,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                  ),
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.transparent, shadowColor: Colors.transparent, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
                   onPressed: () async {
                     String nama = namaController.text.trim();
                     String rawBudget = budgetController.text.replaceAll(RegExp(r'[^0-9]'), '');
                     String tanggal = tanggalController.text.trim();
                     
                     if (nama.isEmpty || rawBudget.isEmpty || tanggal.isEmpty) {
-                      ScaffoldMessenger.of(bottomSheetContext).showSnackBar(
-                        const SnackBar(content: Text('Semua kolom wajib diisi!'), backgroundColor: Colors.redAccent),
-                      );
+                      ScaffoldMessenger.of(bottomSheetContext).showSnackBar(const SnackBar(content: Text('Semua kolom wajib diisi!'), backgroundColor: Colors.redAccent));
                       return;
                     }
 
-                    await DatabaseHelper.instance.insertAcara({
-                      'nama_acara': nama,
-                      'tanggal_acara': tanggal,
-                      'budget_total': int.parse(rawBudget),
-                    });
-
-                    // Set otomatis menjadi Ketuplak karena membuat acara
+                    await DatabaseHelper.instance.insertAcara({'nama_acara': nama, 'tanggal_acara': tanggal, 'budget_total': int.parse(rawBudget)});
                     await PrefsHelper.setUserRole('Ketuplak');
-                    if (mounted) {
-                      setState(() {
-                        _role = 'Ketuplak';
-                      });
-                    }
-
+                    if (mounted) setState(() => _role = 'Ketuplak');
                     _refreshAcaraList();
-                    if (bottomSheetContext.mounted) { 
-                      Navigator.pop(bottomSheetContext);
-                    }
+                    if (bottomSheetContext.mounted) Navigator.pop(bottomSheetContext);
                   },
                   child: const Text('Simpan & Luncurkan', style: TextStyle(fontSize: 16, color: Colors.white, fontWeight: FontWeight.bold)),
                 ),
@@ -269,15 +296,10 @@ class _HomeScreenState extends State<HomeScreen> {
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(20),
           gradient: LinearGradient(colors: _isDarkMode ? [mintGreen, const Color(0xFF059669)] : [electricBlue, navyPrimary]),
-          boxShadow: [
-            BoxShadow(color: (_isDarkMode ? mintGreen : electricBlue).withValues(alpha: 0.3), blurRadius: 12, offset: const Offset(0, 6))
-          ],
+          boxShadow: [BoxShadow(color: (_isDarkMode ? mintGreen : electricBlue).withValues(alpha: 0.3), blurRadius: 12, offset: const Offset(0, 6))],
         ),
         child: FloatingActionButton.extended(
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          focusElevation: 0,
-          highlightElevation: 0,
+          backgroundColor: Colors.transparent, elevation: 0, focusElevation: 0, highlightElevation: 0,
           onPressed: _showAddAcaraBottomSheet,
           icon: const Icon(Icons.add_rounded, color: Colors.white),
           label: const Text('Buat Acara Baru', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
@@ -294,16 +316,13 @@ class _HomeScreenState extends State<HomeScreen> {
       decoration: BoxDecoration(
         color: headerColor,
         borderRadius: const BorderRadius.only(bottomLeft: Radius.circular(40), bottomRight: Radius.circular(40)),
-        boxShadow: [
-          BoxShadow(color: Colors.black.withValues(alpha: 0.08), blurRadius: 20, offset: const Offset(0, 10))
-        ],
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.08), blurRadius: 20, offset: const Offset(0, 10))],
       ),
       child: Column(
         children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              // 🔥 FIX OVERFLOW: Nama panjang dibungkus Expanded agar aman dipotong pakai titik-titik (ellipsis)
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -318,7 +337,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(12)),
-                      child: Text('Workspace $_role', style: const TextStyle(fontSize: 11, color: Colors.white, fontWeight: FontWeight.bold)),
+                      child: const Text('Workspace Pribadi', style: TextStyle(fontSize: 11, color: Colors.white, fontWeight: FontWeight.bold)),
                     ),
                   ],
                 ),
@@ -346,25 +365,18 @@ class _HomeScreenState extends State<HomeScreen> {
                   const SizedBox(width: 12),
                   GestureDetector(
                     onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (context) => const ProfilePage()),
-                      ).then((_) {
-                        setState(() {
-                          _userName = PrefsHelper.userName;
-                          _role = PrefsHelper.userRole;
-                          final photo = PrefsHelper.userProfilePhoto;
-                          _profilePhotoPath = photo.isEmpty ? null : photo;
-                        });
+                      Navigator.push(context, MaterialPageRoute(builder: (context) => const ProfilePage())).then((_) {
+                        _refreshAcaraList(); 
                       });
                     },
                     child: CircleAvatar(
                       radius: 22,
                       backgroundColor: Colors.white.withValues(alpha: 0.2),
-                      backgroundImage: _profilePhotoPath != null
-                          ? FileImage(File(_profilePhotoPath!)) as ImageProvider
+                      // 🔥 FIX 3: Prioritaskan menampilkan foto dari File asli jika ada
+                      backgroundImage: (_profilePhotoPath != null && File(_profilePhotoPath!).existsSync()) 
+                          ? FileImage(File(_profilePhotoPath!)) 
                           : null,
-                      child: _profilePhotoPath == null
+                      child: (_profilePhotoPath == null || !File(_profilePhotoPath!).existsSync())
                           ? const Icon(Icons.person_rounded, color: Colors.white, size: 24)
                           : null,
                     ),
@@ -378,12 +390,8 @@ class _HomeScreenState extends State<HomeScreen> {
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(24),
-              gradient: LinearGradient(
-                colors: _isDarkMode ? [const Color(0xFF334155), const Color(0xFF1E293B)] : [electricBlue, const Color(0xFF1D4ED8)],
-              ),
-              boxShadow: [
-                BoxShadow(color: Colors.black.withValues(alpha: 0.15), blurRadius: 16, offset: const Offset(0, 8))
-              ]
+              gradient: LinearGradient(colors: _isDarkMode ? [const Color(0xFF334155), const Color(0xFF1E293B)] : [electricBlue, const Color(0xFF1D4ED8)]),
+              boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.15), blurRadius: 16, offset: const Offset(0, 8))]
             ),
             child: Row(
               children: [
@@ -397,7 +405,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('Total Kelola Anggaran Proyek', style: TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.w500)),
+                      const Text('Total Budget Event (Ketuplak)', style: TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.w500)),
                       const SizedBox(height: 2),
                       Text(
                         _isBalanceHidden ? 'Rp ••••••••' : formatRupiah(_grandTotalBudget),
@@ -418,16 +426,14 @@ class _HomeScreenState extends State<HomeScreen> {
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(12),
-      child: Container(
-        padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(12)),
-        child: Icon(icon, color: Colors.white, size: 22),
-      ),
+      child: Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(12)), child: Icon(icon, color: Colors.white, size: 22)),
     );
   }
 
   Widget _buildPremiumEventCard(Map<String, dynamic> acara, Color cardBg, Color textCol) {
     String statusProject = (acara['status'] as String?) ?? 'Persiapan';
+    String userRoleStatus = acara['user_role_status'] ?? ''; 
+    bool isPending = userRoleStatus == 'Pending';
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
@@ -435,19 +441,16 @@ class _HomeScreenState extends State<HomeScreen> {
         color: cardBg,
         borderRadius: BorderRadius.circular(24),
         border: Border.all(color: _isDarkMode ? Colors.blueGrey.shade800 : Colors.white, width: 1),
-        boxShadow: [
-          BoxShadow(color: Colors.black.withValues(alpha: _isDarkMode ? 0.3 : 0.03), blurRadius: 14, offset: const Offset(0, 6))
-        ],
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: _isDarkMode ? 0.3 : 0.03), blurRadius: 14, offset: const Offset(0, 6))],
       ),
       child: InkWell(
         borderRadius: BorderRadius.circular(24),
         onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => EventDetailScreen(idAcara: acara['id'], namaAcara: acara['nama_acara']),
-            ),
-          ).then((_) => _refreshAcaraList());
+          if (isPending) {
+            _showPendingInviteDialog(acara);
+          } else {
+            Navigator.push(context, MaterialPageRoute(builder: (context) => EventDetailScreen(idAcara: acara['id'], namaAcara: acara['nama_acara']))).then((_) => _refreshAcaraList());
+          }
         },
         child: Padding(
           padding: const EdgeInsets.all(20),
@@ -460,27 +463,24 @@ class _HomeScreenState extends State<HomeScreen> {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                     decoration: BoxDecoration(
-                      color: (statusProject == 'Selesai' ? mintGreen : electricBlue).withValues(alpha: 0.15),
+                      color: (isPending ? Colors.orange : (statusProject == 'Selesai' ? mintGreen : electricBlue)).withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: Text(
-                      statusProject,
-                      style: TextStyle(color: statusProject == 'Selesai' ? mintGreen : electricBlue, fontSize: 11, fontWeight: FontWeight.bold),
+                      isPending ? 'Undangan (Pending)' : statusProject,
+                      style: TextStyle(color: isPending ? Colors.orange : (statusProject == 'Selesai' ? mintGreen : electricBlue), fontSize: 11, fontWeight: FontWeight.bold),
                     ),
                   ),
-                  IconButton(
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
-                    icon: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent, size: 22),
-                    onPressed: () => _showDeleteConfirmationDialog(acara['id'], acara['nama_acara']),
-                  )
+                  if (userRoleStatus == 'Ketuplak')
+                    IconButton(
+                      padding: EdgeInsets.zero, constraints: const BoxConstraints(),
+                      icon: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent, size: 22),
+                      onPressed: () => _showDeleteConfirmationDialog(acara['id'], acara['nama_acara']),
+                    )
                 ],
               ),
               const SizedBox(height: 14),
-              Text(
-                acara['nama_acara'], 
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: textCol, letterSpacing: -0.5)
-              ),
+              Text(acara['nama_acara'], style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: textCol, letterSpacing: -0.5)),
               const SizedBox(height: 14),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -500,10 +500,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     children: [
                       Icon(Icons.calendar_month_rounded, size: 14, color: Colors.blueGrey.shade300),
                       const SizedBox(width: 4),
-                      Text(
-                        (acara['tanggal_acara'] as String?) ?? '',
-                        style: TextStyle(fontSize: 12, color: Colors.blueGrey.shade300, fontWeight: FontWeight.w600),
-                      ),
+                      Text((acara['tanggal_acara'] as String?) ?? '', style: TextStyle(fontSize: 12, color: Colors.blueGrey.shade300, fontWeight: FontWeight.w600)),
                     ],
                   )
                 ],
