@@ -365,23 +365,13 @@ class _HomeScreenState extends State<HomeScreen> {
                   const SizedBox(width: 12),
                   GestureDetector(
                     onTap: () {
-<<<<<<< HEAD
                       Navigator.push(
                         context,
                         MaterialPageRoute(builder: (context) => const ProfilePage()),
                       ).then((isChanged) {
                         if (isChanged == true) {
-                          setState(() {
-                            _userName = PrefsHelper.userName;
-                            _role = PrefsHelper.userRole;
-                            final photo = PrefsHelper.userProfilePhoto;
-                            _profilePhotoPath = photo.isEmpty ? null : photo;
-                          });
+                          _refreshAcaraList();
                         }
-=======
-                      Navigator.push(context, MaterialPageRoute(builder: (context) => const ProfilePage())).then((_) {
-                        _refreshAcaraList(); 
->>>>>>> 511146d78c4d7232f2b92ceecc6388d2df698b54
                       });
                     },
                     child: CircleAvatar(
