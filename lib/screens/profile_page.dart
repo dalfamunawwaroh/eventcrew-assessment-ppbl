@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import '../helpers/prefs_helper.dart';
+import '../helpers/database_helper.dart';
 import 'landing_page.dart';
 
 class ProfilePage extends StatefulWidget {
@@ -22,6 +23,7 @@ class _ProfilePageState extends State<ProfilePage> {
   void initState() {
     super.initState();
     _loadUserData();
+    _loadUserRoleFromDatabase();
   }
 
   /// READ: Membaca data pengguna dari SharedPreferences
@@ -32,6 +34,28 @@ class _ProfilePageState extends State<ProfilePage> {
     _profilePhotoPath = PrefsHelper.userProfilePhoto.isEmpty 
         ? null 
         : PrefsHelper.userProfilePhoto;
+  }
+
+  Future<void> _loadUserRoleFromDatabase() async {
+    final username = PrefsHelper.userName;
+    final hasCreatedEvent = await DatabaseHelper.instance.checkUserHasCreatedEvent(username);
+    if (hasCreatedEvent) {
+      await PrefsHelper.setUserRole('Ketuplak');
+      if (mounted) {
+        setState(() {
+          _currentRole = 'Ketuplak';
+        });
+      }
+    } else {
+      if (PrefsHelper.userRole == 'Ketuplak') {
+        await PrefsHelper.setUserRole('Anggota');
+        if (mounted) {
+          setState(() {
+            _currentRole = 'Anggota';
+          });
+        }
+      }
+    }
   }
 
   /// UPDATE: Menyimpan perubahan nama ke SharedPreferences
@@ -45,8 +69,19 @@ class _ProfilePageState extends State<ProfilePage> {
     setState(() => _isLoading = true);
 
     try {
+      final newName = _nameController.text;
       // Simpan nama ke SharedPreferences
-      await PrefsHelper.setUserName(_nameController.text);
+      await PrefsHelper.setUserName(newName);
+
+      // Cek peran baru berdasarkan nama yang baru disimpan
+      final hasCreatedEvent = await DatabaseHelper.instance.checkUserHasCreatedEvent(newName);
+      if (hasCreatedEvent) {
+        await PrefsHelper.setUserRole('Ketuplak');
+        _currentRole = 'Ketuplak';
+      } else {
+        await PrefsHelper.setUserRole('Anggota');
+        _currentRole = 'Anggota';
+      }
 
       if (mounted) {
         setState(() => _isLoading = false);
@@ -257,7 +292,14 @@ class _ProfilePageState extends State<ProfilePage> {
       canPop: false,
       onPopInvoked: (bool didPop) async {
         if (didPop) return;
-        await PrefsHelper.setUserName(_nameController.text);
+        final newName = _nameController.text;
+        await PrefsHelper.setUserName(newName);
+        final hasCreatedEvent = await DatabaseHelper.instance.checkUserHasCreatedEvent(newName);
+        if (hasCreatedEvent) {
+          await PrefsHelper.setUserRole('Ketuplak');
+        } else {
+          await PrefsHelper.setUserRole('Anggota');
+        }
         if (context.mounted) {
           Navigator.pop(context, true);
         }
@@ -289,8 +331,15 @@ class _ProfilePageState extends State<ProfilePage> {
                       icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white),
                       onPressed: () async {
                         // Pastikan state atau data nama terbaru tersimpan ke SharedPreferences
-                        await PrefsHelper.setUserName(_nameController.text);
-                        // Status (_currentRole) tidak berubah di sini, jadi tetap aman.
+                        final newName = _nameController.text;
+                        await PrefsHelper.setUserName(newName);
+                        
+                        final hasCreatedEvent = await DatabaseHelper.instance.checkUserHasCreatedEvent(newName);
+                        if (hasCreatedEvent) {
+                          await PrefsHelper.setUserRole('Ketuplak');
+                        } else {
+                          await PrefsHelper.setUserRole('Anggota');
+                        }
                         
                         if (context.mounted) {
                           Navigator.pop(context, true);

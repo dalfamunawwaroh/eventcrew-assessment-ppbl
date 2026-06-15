@@ -23,11 +23,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
   List<Map<String, dynamic>> _acaraList = [];
   late String _userName; 
-  String _role = PrefsHelper.userRole;
   bool _isDarkMode = PrefsHelper.isDarkMode;
   bool _isBalanceHidden = PrefsHelper.isBalanceHidden; 
-  
-  // 🔥 FIX 1: Kosongkan dulu di awal, akan di-load di dalam fungsi
   String? _profilePhotoPath; 
 
   int _grandTotalBudget = 0;
@@ -59,7 +56,6 @@ class _HomeScreenState extends State<HomeScreen> {
       for (var div in divisiList) {
         String namaDiv = div['nama_divisi'].toString();
         // Cek apakah username login ada di dalam divisi project ini
-        // 🔥 FIX 2: Gunakan savedName untuk filter yang lebih akurat
         if (namaDiv.contains(savedName)) {
           isMember = true;
           idDivisiUser = div['id']; // Simpan ID divisi untuk keperluan Accept/Decline
@@ -91,8 +87,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
     if (mounted) {
       setState(() {
-        _userName = savedName; // Pastikan nama ter-update
-        _profilePhotoPath = savedPhoto.isNotEmpty ? savedPhoto : null; // Pastikan foto ter-update
+        _userName = savedName; 
+        _profilePhotoPath = savedPhoto.isNotEmpty ? savedPhoto : null; 
         _acaraList = userAcaraList;
         _grandTotalBudget = totalBudget; 
       });
@@ -236,8 +232,6 @@ class _HomeScreenState extends State<HomeScreen> {
                     }
 
                     await DatabaseHelper.instance.insertAcara({'nama_acara': nama, 'tanggal_acara': tanggal, 'budget_total': int.parse(rawBudget)});
-                    await PrefsHelper.setUserRole('Ketuplak');
-                    if (mounted) setState(() => _role = 'Ketuplak');
                     _refreshAcaraList();
                     if (bottomSheetContext.mounted) Navigator.pop(bottomSheetContext);
                   },
@@ -364,30 +358,14 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   const SizedBox(width: 12),
                   GestureDetector(
-                    onTap: () {
-<<<<<<< HEAD
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (context) => const ProfilePage()),
-                      ).then((isChanged) {
-                        if (isChanged == true) {
-                          setState(() {
-                            _userName = PrefsHelper.userName;
-                            _role = PrefsHelper.userRole;
-                            final photo = PrefsHelper.userProfilePhoto;
-                            _profilePhotoPath = photo.isEmpty ? null : photo;
-                          });
-                        }
-=======
-                      Navigator.push(context, MaterialPageRoute(builder: (context) => const ProfilePage())).then((_) {
-                        _refreshAcaraList(); 
->>>>>>> 511146d78c4d7232f2b92ceecc6388d2df698b54
-                      });
+                    onTap: () async {
+                      // 🔥 FIX 4: Gunakan await untuk memastikan halaman ProfilePage tertutup sebelum merefresh data
+                      await Navigator.push(context, MaterialPageRoute(builder: (context) => const ProfilePage()));
+                      if (mounted) _refreshAcaraList(); 
                     },
                     child: CircleAvatar(
                       radius: 22,
                       backgroundColor: Colors.white.withValues(alpha: 0.2),
-                      // 🔥 FIX 3: Prioritaskan menampilkan foto dari File asli jika ada
                       backgroundImage: (_profilePhotoPath != null && File(_profilePhotoPath!).existsSync()) 
                           ? FileImage(File(_profilePhotoPath!)) 
                           : null,

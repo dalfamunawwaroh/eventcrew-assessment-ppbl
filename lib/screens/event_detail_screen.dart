@@ -1,6 +1,6 @@
+import 'dart:math'; // 🔥 IMPORT BARU: Wajib untuk kalkulasi sudut CustomPainter
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:shared_preferences/shared_preferences.dart'; // 🔥 Import SharedPreferences
 import '../helpers/database_helper.dart';
 import '../helpers/prefs_helper.dart';
 
@@ -23,10 +23,8 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
   String _namaAcaraReal = '';
   int _budgetAcara = 0;
 
-  // 🔥 VARIABEL LOGIKA: Event-Based Role
   bool _isKetuplak = false; 
 
-  // SINKRONISASI VALUE SHAREDPREFERENCES
   final bool _isBalanceHidden = PrefsHelper.isBalanceHidden;
   final bool _isDarkMode = PrefsHelper.isDarkMode;
 
@@ -38,7 +36,6 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
     _checkKetuplakStatus();
   }
 
-  // Cek apakah user yang login saat ini adalah pembuat acara ini
   Future<void> _checkKetuplakStatus() async {
     final divs = await DatabaseHelper.instance.getDivisiByAcara(widget.idAcara);
     final currentUser = PrefsHelper.userName;
@@ -114,7 +111,6 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
     );
   }
 
-  // DIALOG TAMBAH MEMBER EVENT
   void _showAddMemberDialog() {
     final usernameController = TextEditingController();
     
@@ -151,36 +147,11 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
             onPressed: () async {
               String invitedUser = usernameController.text.trim();
               if (invitedUser.isNotEmpty) {
-                // 🔥 LOGIKA VALIDASI USERNAME TERDAFTAR
-                final prefs = await SharedPreferences.getInstance();
-                String? invitedFullName = prefs.getString('simulasi_nama_$invitedUser');
-
-                if (!mounted) return;
-
-                if (invitedFullName == null) {
-                  // Username tidak ditemukan di penyimpanan (Belum Register)
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Gagal! Username tersebut belum terdaftar di aplikasi.'),
-                      backgroundColor: Colors.redAccent,
-                      behavior: SnackBarBehavior.floating,
-                    )
-                  );
-                  return; // Hentikan proses invite
-                }
-
-                // Jika terdaftar, cek apakah mengundang diri sendiri
-                if (invitedFullName == PrefsHelper.userName) {
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Anda tidak bisa mengundang diri sendiri!'), backgroundColor: Colors.orange, behavior: SnackBarBehavior.floating));
-                  return;
-                }
-
                 Navigator.pop(dialogCtx);
                 
-                // Simpan menggunakan Full Name agar terdeteksi di HomeScreen si target
                 await DatabaseHelper.instance.insertDivisi({
                   'id_acara': widget.idAcara,
-                  'nama_divisi': 'Anggota (Pending): $invitedFullName', 
+                  'nama_divisi': 'Anggota (Pending): $invitedUser', 
                   'alokasi_budget': 0,
                   'status': 'Belum Aktif'
                 });
@@ -189,7 +160,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
 
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
-                    content: Text('Berhasil mengirim undangan ke $invitedFullName (@$invitedUser)!'),
+                    content: Text('Berhasil mengirim undangan kolaborasi ke @$invitedUser!'),
                     backgroundColor: mint,
                     behavior: SnackBarBehavior.floating,
                   )
@@ -319,6 +290,9 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
     );
   }
 
+  // =================================================================
+  // TAB 1: DIVISI & TUGAS
+  // =================================================================
   Widget _buildDivisiTab() {
     final Color bgCard = _isDarkMode ? const Color(0xFF1E1E1E) : Colors.white;
     final Color txtColor = _isDarkMode ? Colors.white : Colors.black87;
@@ -491,6 +465,9 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
     );
   }
 
+  // =================================================================
+  // TAB 2: RAB ACARA DENGAN CUSTOM DRAWING (DONUT CHART) 🔥
+  // =================================================================
   Widget _buildRABTab() {
     final Color bgCard = _isDarkMode ? const Color(0xFF1E1E1E) : Colors.white;
     final Color txtColor = _isDarkMode ? Colors.white : Colors.black87;
@@ -518,46 +495,58 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
 
         return Column(
           children: [
+            // 🔥 KARTU UTAMA RAB (TERMASUK DONUT CHART)
             Container(
-              margin: const EdgeInsets.all(20), padding: const EdgeInsets.all(24),
+              margin: const EdgeInsets.all(20), padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
                 gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: _isDarkMode ? [const Color(0xFF374151), const Color(0xFF1F2937)] : [const Color(0xFF1E3A8A), const Color(0xFF2563EB)]),
                 borderRadius: BorderRadius.circular(24), boxShadow: [BoxShadow(color: navy.withValues(alpha: _isDarkMode ? 0.1 : 0.3), blurRadius: 15, offset: const Offset(0, 8))],
               ),
               child: Row(
                 children: [
-                  Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.2), shape: BoxShape.circle), child: const Icon(Icons.account_balance_wallet, color: Colors.white, size: 32)),
-                  const SizedBox(width: 16),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        Container(
+                          padding: const EdgeInsets.all(10), 
+                          decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(12)), 
+                          child: const Icon(Icons.account_balance_wallet, color: Colors.white, size: 24)
+                        ),
+                        const SizedBox(height: 16),
                         const Text('Budget Utama Acara', style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w600)),
-                        Text(_isBalanceHidden ? 'Rp ••••••••' : formatRupiah(_budgetAcara), style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w900)),
-                        const SizedBox(height: 8),
-                        Container(height: 1, color: Colors.white.withValues(alpha: 0.2)),
-                        const SizedBox(height: 8),
+                        Text(_isBalanceHidden ? 'Rp ••••••••' : formatRupiah(_budgetAcara), style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w900)),
+                        const SizedBox(height: 12),
                         Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                const Text('Total Dialokasikan', style: TextStyle(color: Colors.white70, fontSize: 10, fontWeight: FontWeight.bold)),
-                                Text(_isBalanceHidden ? 'Rp ••••••••' : formatRupiah(totalDialokasikan), style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold)),
+                                const Text('Dialokasikan', style: TextStyle(color: Colors.white70, fontSize: 10, fontWeight: FontWeight.bold)),
+                                Text(_isBalanceHidden ? 'Rp ••••••••' : formatRupiah(totalDialokasikan), style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)),
                               ],
                             ),
+                            const SizedBox(width: 16),
                             Column(
-                              crossAxisAlignment: CrossAxisAlignment.end,
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 const Text('Sisa Dana', style: TextStyle(color: Colors.white70, fontSize: 10, fontWeight: FontWeight.bold)),
-                                Text(_isBalanceHidden ? 'Rp ••••••••' : formatRupiah(sisaBelumDialokasikan), style: TextStyle(color: sisaBelumDialokasikan < 0 ? Colors.redAccent.shade100 : Colors.greenAccent.shade200, fontSize: 14, fontWeight: FontWeight.bold)),
+                                Text(
+                                  _isBalanceHidden ? 'Rp ••••••••' : formatRupiah(sisaBelumDialokasikan), 
+                                  style: TextStyle(color: sisaBelumDialokasikan < 0 ? Colors.redAccent.shade100 : Colors.greenAccent.shade200, fontSize: 13, fontWeight: FontWeight.bold)
+                                ),
                               ],
                             ),
                           ],
                         ),
                       ],
                     ),
+                  ),
+                  // 🔥 WIDGET CUSTOM DRAWING (DONUT CHART)
+                  BudgetDonutChart(
+                    totalBudget: _budgetAcara,
+                    terpakai: totalDialokasikan,
+                    isDarkMode: _isDarkMode,
                   ),
                 ],
               ),
@@ -687,6 +676,9 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
     );
   }
 
+  // =================================================================
+  // TAB 3: MEMBER / ANGGOTA TIM
+  // =================================================================
   Widget _buildMemberTab() {
     final Color bgCard = _isDarkMode ? const Color(0xFF1E1E1E) : Colors.white;
     final Color txtColor = _isDarkMode ? Colors.white : Colors.black87;
@@ -772,7 +764,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
   }
 
   // =================================================================
-  // DIALOG-DIALOG CRUD 
+  // DIALOG-DIALOG CRUD
   // =================================================================
   void _showEditAcaraDialog() {
     final namaController = TextEditingController(text: _namaAcaraReal);
@@ -865,7 +857,6 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
   void _showEditTaskDialog(Map<String, dynamic> task) {
     final taskController = TextEditingController(text: task['nama_task']);
     final deadlineController = TextEditingController(text: task['deadline'] ?? '');
-
     showDialog(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -1117,5 +1108,99 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
         ],
       ),
     );
+  }
+}
+
+// 🔥 WIDGET CUSTOM DRAWING UNTUK DIAGRAM DONAT 🔥
+class BudgetDonutChart extends StatelessWidget {
+  final int totalBudget;
+  final int terpakai;
+  final bool isDarkMode;
+
+  const BudgetDonutChart({
+    super.key,
+    required this.totalBudget,
+    required this.terpakai,
+    required this.isDarkMode,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    double percentage = totalBudget <= 0 ? 0 : (terpakai / totalBudget).clamp(0.0, 1.0);
+    
+    return SizedBox(
+      width: 110,
+      height: 110,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          CustomPaint(
+            size: const Size(110, 110),
+            painter: _DonutChartPainter(
+              percentage: percentage,
+              isDarkMode: isDarkMode,
+            ),
+          ),
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                '${(percentage * 100).toInt()}%',
+                style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: Colors.white),
+              ),
+              const Text(
+                'Terpakai',
+                style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.white70),
+              ),
+            ],
+          )
+        ],
+      ),
+    );
+  }
+}
+
+class _DonutChartPainter extends CustomPainter {
+  final double percentage;
+  final bool isDarkMode;
+
+  _DonutChartPainter({required this.percentage, required this.isDarkMode});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final Offset center = Offset(size.width / 2, size.height / 2);
+    final double radius = min(size.width / 2, size.height / 2) - 10; 
+
+    final Paint bgPaint = Paint()
+      ..color = Colors.white.withValues(alpha: 0.15)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 10
+      ..strokeCap = StrokeCap.round;
+    
+    canvas.drawCircle(center, radius, bgPaint);
+
+    final Paint progressPaint = Paint()
+      ..shader = const LinearGradient(
+        colors: [Color(0xFF10B981), Color(0xFF34D399)], 
+      ).createShader(Rect.fromCircle(center: center, radius: radius))
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 10
+      ..strokeCap = StrokeCap.round;
+
+    const double startAngle = -pi / 2;
+    final double sweepAngle = 2 * pi * percentage;
+
+    canvas.drawArc(
+      Rect.fromCircle(center: center, radius: radius),
+      startAngle,
+      sweepAngle,
+      false, 
+      progressPaint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _DonutChartPainter oldDelegate) {
+    return oldDelegate.percentage != percentage || oldDelegate.isDarkMode != isDarkMode;
   }
 }
