@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:shared_preferences/shared_preferences.dart'; // 🔥 Import SharedPreferences
 import '../helpers/database_helper.dart';
 import '../helpers/prefs_helper.dart';
 
@@ -131,7 +132,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text('Masukkan username anggota yang ingin diundang ke proyek kepanitiaan ini.', style: TextStyle(fontSize: 13)),
+            const Text('Masukkan username anggota yang ingin diundang ke proyek ini.', style: TextStyle(fontSize: 13)),
             const SizedBox(height: 16),
             TextField(
               controller: usernameController,
@@ -150,11 +151,36 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
             onPressed: () async {
               String invitedUser = usernameController.text.trim();
               if (invitedUser.isNotEmpty) {
+                // 🔥 LOGIKA VALIDASI USERNAME TERDAFTAR
+                final prefs = await SharedPreferences.getInstance();
+                String? invitedFullName = prefs.getString('simulasi_nama_$invitedUser');
+
+                if (!mounted) return;
+
+                if (invitedFullName == null) {
+                  // Username tidak ditemukan di penyimpanan (Belum Register)
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Gagal! Username tersebut belum terdaftar di aplikasi.'),
+                      backgroundColor: Colors.redAccent,
+                      behavior: SnackBarBehavior.floating,
+                    )
+                  );
+                  return; // Hentikan proses invite
+                }
+
+                // Jika terdaftar, cek apakah mengundang diri sendiri
+                if (invitedFullName == PrefsHelper.userName) {
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Anda tidak bisa mengundang diri sendiri!'), backgroundColor: Colors.orange, behavior: SnackBarBehavior.floating));
+                  return;
+                }
+
                 Navigator.pop(dialogCtx);
                 
+                // Simpan menggunakan Full Name agar terdeteksi di HomeScreen si target
                 await DatabaseHelper.instance.insertDivisi({
                   'id_acara': widget.idAcara,
-                  'nama_divisi': 'Anggota: $invitedUser', 
+                  'nama_divisi': 'Anggota (Pending): $invitedFullName', 
                   'alokasi_budget': 0,
                   'status': 'Belum Aktif'
                 });
@@ -163,7 +189,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
 
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
-                    content: Text('Berhasil menambahkan @$invitedUser ke dalam tim!'),
+                    content: Text('Berhasil mengirim undangan ke $invitedFullName (@$invitedUser)!'),
                     backgroundColor: mint,
                     behavior: SnackBarBehavior.floating,
                   )
@@ -184,32 +210,22 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
     final Color titleColor = _isDarkMode ? Colors.white : const Color(0xFF1E3A8A);
 
     return DefaultTabController(
-      length: 3, // 🔥 FIX: Mengubah dari 2 tab menjadi 3 tab
+      length: 3,
       child: Scaffold(
         backgroundColor: backgroundColor,
         appBar: AppBar(
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          leading: IconButton(
-            icon: Icon(Icons.arrow_back_ios_new, color: titleColor),
-            onPressed: () => Navigator.pop(context),
-          ),
+          backgroundColor: Colors.transparent, elevation: 0,
+          leading: IconButton(icon: Icon(Icons.arrow_back_ios_new, color: titleColor), onPressed: () => Navigator.pop(context)),
           title: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(
-                _namaAcaraReal,
-                style: TextStyle(color: titleColor, fontWeight: FontWeight.w900, fontSize: 22, letterSpacing: -0.5),
-              ),
+              Text(_namaAcaraReal, style: TextStyle(color: titleColor, fontWeight: FontWeight.w900, fontSize: 22, letterSpacing: -0.5)),
               if (_tanggalAcara.isNotEmpty)
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text('📅 ', style: TextStyle(fontSize: 12, color: titleColor)),
-                    Text(
-                      'Pelaksanaan: ${formatTanggal(_tanggalAcara)}',
-                      style: TextStyle(color: _isDarkMode ? Colors.white70 : navy, fontSize: 12, fontWeight: FontWeight.w600),
-                    ),
+                    Text('Pelaksanaan: ${formatTanggal(_tanggalAcara)}', style: TextStyle(color: _isDarkMode ? Colors.white70 : navy, fontSize: 12, fontWeight: FontWeight.w600)),
                   ],
                 ),
             ],
@@ -253,30 +269,17 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
         body: Column(
           children: [
             Container(
-              margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              height: 54,
+              margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 10), height: 54,
               decoration: BoxDecoration(
-                color: cardColor,
-                borderRadius: BorderRadius.circular(25),
+                color: cardColor, borderRadius: BorderRadius.circular(25),
                 boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: _isDarkMode ? 0.3 : 0.05), blurRadius: 10)],
               ),
               child: TabBar(
-                indicatorSize: TabBarIndicatorSize.tab,
-                dividerColor: Colors.transparent,
-                labelPadding: const EdgeInsets.symmetric(horizontal: 4), // Mencegah teks kepanjangan
-                indicator: BoxDecoration(
-                  color: _isDarkMode ? mint : navy,
-                  borderRadius: BorderRadius.circular(25),
-                ),
-                labelColor: Colors.white,
-                labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                indicatorSize: TabBarIndicatorSize.tab, dividerColor: Colors.transparent, labelPadding: const EdgeInsets.symmetric(horizontal: 4),
+                indicator: BoxDecoration(color: _isDarkMode ? mint : navy, borderRadius: BorderRadius.circular(25)),
+                labelColor: Colors.white, labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
                 unselectedLabelColor: _isDarkMode ? Colors.white60 : Colors.blueGrey.shade600,
-                // 🔥 FIX: 3 MENU TAB BAR
-                tabs: const [
-                  Tab(text: 'Tugas/Divisi'),
-                  Tab(text: 'RAB Acara'),
-                  Tab(text: 'Tim'),
-                ],
+                tabs: const [Tab(text: 'Tugas/Divisi'), Tab(text: 'RAB Acara'), Tab(text: 'Tim')],
               ),
             ),
             const SizedBox(height: 10),
@@ -286,7 +289,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                 children: [
                   _buildDivisiTab(),
                   _buildRABTab(),
-                  _buildMemberTab(), // 🔥 FIX: Konten Tab Member dipanggil di sini
+                  _buildMemberTab(), 
                 ],
               ),
             ),
@@ -294,9 +297,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
         ),
         floatingActionButton: _isKetuplak 
             ? FloatingActionButton.extended(
-                backgroundColor: mint,
-                elevation: 4,
-                onPressed: _showAddDivisiDialog, 
+                backgroundColor: mint, elevation: 4, onPressed: _showAddDivisiDialog, 
                 icon: const Icon(Icons.add_rounded, color: Colors.white),
                 label: const Text('Buat Divisi', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
               )
@@ -318,9 +319,6 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
     );
   }
 
-  // =================================================================
-  // TAB 1: DIVISI & TUGAS 
-  // =================================================================
   Widget _buildDivisiTab() {
     final Color bgCard = _isDarkMode ? const Color(0xFF1E1E1E) : Colors.white;
     final Color txtColor = _isDarkMode ? Colors.white : Colors.black87;
@@ -332,8 +330,11 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
       builder: (context, snapshot) {
         if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
         
-        // Filter: Hanya tampilkan divisi murni, sembunyikan anggota dari tab ini agar tidak rancu
-        final divisiList = snapshot.data!.where((d) => !d['nama_divisi'].toString().startsWith('Anggota:') && !d['nama_divisi'].toString().startsWith('Inti (Ketuplak:')).toList();
+        final divisiList = snapshot.data!.where((d) => 
+          !d['nama_divisi'].toString().startsWith('Anggota:') && 
+          !d['nama_divisi'].toString().startsWith('Anggota (Pending):') && 
+          !d['nama_divisi'].toString().startsWith('Inti (Ketuplak:')
+        ).toList();
 
         if (divisiList.isEmpty) return _buildPlaceholder('Belum ada divisi yang dibentuk.', Icons.groups_outlined);
 
@@ -347,8 +348,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
             return Container(
               margin: const EdgeInsets.only(bottom: 16),
               decoration: BoxDecoration(
-                color: bgCard,
-                borderRadius: BorderRadius.circular(20),
+                color: bgCard, borderRadius: BorderRadius.circular(20),
                 boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: _isDarkMode ? 0.2 : 0.03), blurRadius: 10, offset: const Offset(0, 4))],
               ),
               child: Theme(
@@ -360,26 +360,16 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                   tilePadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                   leading: Container(
                     padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: _statusColor((div['status'] as String?) ?? 'Belum Aktif').withValues(alpha: 0.2),
-                      shape: BoxShape.circle,
-                    ),
+                    decoration: BoxDecoration(color: _statusColor((div['status'] as String?) ?? 'Belum Aktif').withValues(alpha: 0.2), shape: BoxShape.circle),
                     child: Icon(Icons.workspaces_filled, color: _statusColor((div['status'] as String?) ?? 'Belum Aktif')),
                   ),
                   title: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Expanded(
-                        child: Text(
-                          div['nama_divisi'],
-                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: titleTxtColor),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
+                      Expanded(child: Text(div['nama_divisi'], style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: titleTxtColor), overflow: TextOverflow.ellipsis)),
                       if (_isKetuplak)
                         IconButton(
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
+                          padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
                           icon: Icon(Icons.delete_outline, size: 20, color: Colors.red.shade400),
                           onPressed: () => _confirmDeleteDivisi(div),
                         ),
@@ -400,8 +390,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Chip(
-                              visualDensity: VisualDensity.compact,
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
+                              visualDensity: VisualDensity.compact, padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
                               backgroundColor: _statusColor(s).withValues(alpha: 0.12),
                               label: Text(s, style: TextStyle(color: _statusColor(s), fontSize: 11, fontWeight: FontWeight.w600)),
                               side: BorderSide.none,
@@ -409,16 +398,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                             const SizedBox(height: 6),
                             Row(
                               children: [
-                                Expanded(
-                                  child: ClipRRect(
-                                    borderRadius: BorderRadius.circular(4),
-                                    child: LinearProgressIndicator(
-                                      value: total == 0 ? 0 : (done / total),
-                                      backgroundColor: _isDarkMode ? Colors.grey.shade800 : Colors.grey.shade300,
-                                      valueColor: AlwaysStoppedAnimation<Color>(mint),
-                                    ),
-                                  ),
-                                ),
+                                Expanded(child: ClipRRect(borderRadius: BorderRadius.circular(4), child: LinearProgressIndicator(value: total == 0 ? 0 : (done / total), backgroundColor: _isDarkMode ? Colors.grey.shade800 : Colors.grey.shade300, valueColor: AlwaysStoppedAnimation<Color>(mint)))),
                                 const SizedBox(width: 10),
                                 Text('$percent%', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: titleTxtColor)),
                               ],
@@ -434,18 +414,12 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                     Container(
                       padding: const EdgeInsets.only(left: 16, right: 16, bottom: 16),
                       width: double.infinity,
-                      decoration: BoxDecoration(
-                        color: innerContainerColor,
-                        borderRadius: const BorderRadius.vertical(bottom: Radius.circular(20)),
-                      ),
+                      decoration: BoxDecoration(color: innerContainerColor, borderRadius: const BorderRadius.vertical(bottom: Radius.circular(20))),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           const Divider(),
-                          const Padding(
-                            padding: EdgeInsets.symmetric(vertical: 8.0),
-                            child: Text('Daftar Tugas:', style: TextStyle(fontWeight: FontWeight.w700, color: Colors.blueGrey)),
-                          ),
+                          const Padding(padding: EdgeInsets.symmetric(vertical: 8.0), child: Text('Daftar Tugas:', style: TextStyle(fontWeight: FontWeight.w700, color: Colors.blueGrey))),
                           FutureBuilder<List<Map<String, dynamic>>>(
                             future: DatabaseHelper.instance.getTasksByDivisi(div['id']),
                             builder: (context, taskSnapshot) {
@@ -458,31 +432,20 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                                   return ListTile(
                                     contentPadding: EdgeInsets.zero,
                                     leading: Checkbox(
-                                      activeColor: mint,
-                                      value: task['is_done'] == 1, 
+                                      activeColor: mint, value: task['is_done'] == 1, 
                                       onChanged: (bool? value) async {
                                         await DatabaseHelper.instance.updateTaskStatus(task['id'], value! ? 1 : 0);
                                         setState(() {}); 
                                       },
                                     ),
-                                    title: Text(
-                                      task['nama_task'],
-                                      style: TextStyle(
-                                        decoration: task['is_done'] == 1 ? TextDecoration.lineThrough : null, 
-                                        color: task['is_done'] == 1 ? Colors.grey : txtColor,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
+                                    title: Text(task['nama_task'], style: TextStyle(decoration: task['is_done'] == 1 ? TextDecoration.lineThrough : null, color: task['is_done'] == 1 ? Colors.grey : txtColor, fontWeight: FontWeight.w600)),
                                     subtitle: task['deadline'] != null && (task['deadline'] as String).isNotEmpty
                                         ? Text('Deadline: ${task['deadline']}', style: TextStyle(fontSize: 11, color: _isDarkMode ? Colors.white60 : Colors.black54, fontWeight: FontWeight.w500))
                                         : null,
                                     trailing: _isKetuplak ? Row(
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
-                                        IconButton(
-                                          icon: const Icon(Icons.edit_outlined, size: 20, color: Colors.blueGrey), 
-                                          onPressed: () => _showEditTaskDialog(task), 
-                                        ),
+                                        IconButton(icon: const Icon(Icons.edit_outlined, size: 20, color: Colors.blueGrey), onPressed: () => _showEditTaskDialog(task)),
                                         IconButton(
                                           icon: Icon(Icons.delete_outline, size: 20, color: Colors.red.shade400),
                                           onPressed: () async {
@@ -493,18 +456,11 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                                                 content: Text('Hapus tugas "${task['nama_task']}"?'),
                                                 actions: [
                                                   TextButton(onPressed: () => Navigator.pop(dialogCtx, false), child: const Text('Batal')),
-                                                  ElevatedButton(
-                                                    style: ElevatedButton.styleFrom(backgroundColor: Colors.red.shade400),
-                                                    onPressed: () => Navigator.pop(dialogCtx, true),
-                                                    child: const Text('Hapus', style: TextStyle(color: Colors.white)),
-                                                  ),
+                                                  ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.red.shade400), onPressed: () => Navigator.pop(dialogCtx, true), child: const Text('Hapus', style: TextStyle(color: Colors.white))),
                                                 ],
                                               ),
                                             );
-                                            if (confirm == true) {
-                                              await DatabaseHelper.instance.deleteTask(task['id']); 
-                                              setState(() {}); 
-                                            }
+                                            if (confirm == true) { await DatabaseHelper.instance.deleteTask(task['id']); setState(() {}); }
                                           },
                                         ),
                                       ],
@@ -518,16 +474,8 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                             Row(
                               mainAxisAlignment: MainAxisAlignment.end,
                               children: [
-                                TextButton.icon(
-                                  onPressed: () => _showEditDivisiDialog(div),
-                                  icon: const Icon(Icons.edit, color: Colors.blueGrey, size: 16),
-                                  label: const Text('Edit Divisi', style: TextStyle(color: Colors.blueGrey, fontSize: 12, fontWeight: FontWeight.bold)),
-                                ),
-                                TextButton.icon(
-                                  onPressed: () => _showAddTaskDialog(div['id'], div['nama_divisi']),
-                                  icon: Icon(Icons.add_task, color: _isDarkMode ? mint : navy, size: 18),
-                                  label: Text('Tambah Tugas', style: TextStyle(color: _isDarkMode ? mint : navy, fontWeight: FontWeight.bold)),
-                                ),
+                                TextButton.icon(onPressed: () => _showEditDivisiDialog(div), icon: const Icon(Icons.edit, color: Colors.blueGrey, size: 16), label: const Text('Edit Divisi', style: TextStyle(color: Colors.blueGrey, fontSize: 12, fontWeight: FontWeight.bold))),
+                                TextButton.icon(onPressed: () => _showAddTaskDialog(div['id'], div['nama_divisi']), icon: Icon(Icons.add_task, color: _isDarkMode ? mint : navy, size: 18), label: Text('Tambah Tugas', style: TextStyle(color: _isDarkMode ? mint : navy, fontWeight: FontWeight.bold))),
                               ],
                             ),
                         ],
@@ -543,9 +491,6 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
     );
   }
 
-  // =================================================================
-  // TAB 2: RAB ACARA
-  // =================================================================
   Widget _buildRABTab() {
     final Color bgCard = _isDarkMode ? const Color(0xFF1E1E1E) : Colors.white;
     final Color txtColor = _isDarkMode ? Colors.white : Colors.black87;
@@ -557,8 +502,11 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
       builder: (context, snapshot) {
         if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
         
-        // Di tab RAB, sembunyikan anggota yang tidak dikasih budget
-        final divisiList = snapshot.data!.where((d) => !d['nama_divisi'].toString().startsWith('Anggota:') && !d['nama_divisi'].toString().startsWith('Inti (Ketuplak:')).toList();
+        final divisiList = snapshot.data!.where((d) => 
+          !d['nama_divisi'].toString().startsWith('Anggota:') && 
+          !d['nama_divisi'].toString().startsWith('Anggota (Pending):') && 
+          !d['nama_divisi'].toString().startsWith('Inti (Ketuplak:')
+        ).toList();
         
         if (divisiList.isEmpty) return _buildPlaceholder('Belum ada divisi/RAB.', Icons.account_balance_wallet_outlined);
         
@@ -571,24 +519,14 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
         return Column(
           children: [
             Container(
-              margin: const EdgeInsets.all(20),
-              padding: const EdgeInsets.all(24),
+              margin: const EdgeInsets.all(20), padding: const EdgeInsets.all(24),
               decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft, 
-                  end: Alignment.bottomRight, 
-                  colors: _isDarkMode ? [const Color(0xFF374151), const Color(0xFF1F2937)] : [const Color(0xFF1E3A8A), const Color(0xFF2563EB)]
-                ),
-                borderRadius: BorderRadius.circular(24),
-                boxShadow: [BoxShadow(color: navy.withValues(alpha: _isDarkMode ? 0.1 : 0.3), blurRadius: 15, offset: const Offset(0, 8))],
+                gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: _isDarkMode ? [const Color(0xFF374151), const Color(0xFF1F2937)] : [const Color(0xFF1E3A8A), const Color(0xFF2563EB)]),
+                borderRadius: BorderRadius.circular(24), boxShadow: [BoxShadow(color: navy.withValues(alpha: _isDarkMode ? 0.1 : 0.3), blurRadius: 15, offset: const Offset(0, 8))],
               ),
               child: Row(
                 children: [
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.2), shape: BoxShape.circle),
-                    child: const Icon(Icons.account_balance_wallet, color: Colors.white, size: 32),
-                  ),
+                  Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.2), shape: BoxShape.circle), child: const Icon(Icons.account_balance_wallet, color: Colors.white, size: 32)),
                   const SizedBox(width: 16),
                   Expanded(
                     child: Column(
@@ -613,10 +551,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                               crossAxisAlignment: CrossAxisAlignment.end,
                               children: [
                                 const Text('Sisa Dana', style: TextStyle(color: Colors.white70, fontSize: 10, fontWeight: FontWeight.bold)),
-                                Text(
-                                  _isBalanceHidden ? 'Rp ••••••••' : formatRupiah(sisaBelumDialokasikan), 
-                                  style: TextStyle(color: sisaBelumDialokasikan < 0 ? Colors.redAccent.shade100 : Colors.greenAccent.shade200, fontSize: 14, fontWeight: FontWeight.bold)
-                                ),
+                                Text(_isBalanceHidden ? 'Rp ••••••••' : formatRupiah(sisaBelumDialokasikan), style: TextStyle(color: sisaBelumDialokasikan < 0 ? Colors.redAccent.shade100 : Colors.greenAccent.shade200, fontSize: 14, fontWeight: FontWeight.bold)),
                               ],
                             ),
                           ],
@@ -627,13 +562,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                 ],
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 4),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: Text('Rincian Dana per Divisi', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: titleTxtColor)),
-              ),
-            ),
+            Padding(padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 4), child: Align(alignment: Alignment.centerLeft, child: Text('Rincian Dana per Divisi', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: titleTxtColor)))),
             Expanded(
               child: ListView.builder(
                 padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
@@ -643,22 +572,13 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                   final div = divisiList[index];
                   return Container(
                     margin: const EdgeInsets.only(bottom: 12),
-                    decoration: BoxDecoration(
-                      color: bgCard,
-                      borderRadius: BorderRadius.circular(16),
-                      boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: _isDarkMode ? 0.2 : 0.02), blurRadius: 8)],
-                    ),
+                    decoration: BoxDecoration(color: bgCard, borderRadius: BorderRadius.circular(16), boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: _isDarkMode ? 0.2 : 0.02), blurRadius: 8)]),
                     child: Theme(
                       data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
                       child: ExpansionTile(
                         tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                        collapsedIconColor: _isDarkMode ? Colors.white60 : Colors.grey,
-                        iconColor: _isDarkMode ? mint : navy,
-                        leading: Container(
-                          padding: const EdgeInsets.all(10),
-                          decoration: BoxDecoration(color: mint.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(12)),
-                          child: Icon(Icons.monetization_on_rounded, color: mint),
-                        ),
+                        collapsedIconColor: _isDarkMode ? Colors.white60 : Colors.grey, iconColor: _isDarkMode ? mint : navy,
+                        leading: Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: mint.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(12)), child: Icon(Icons.monetization_on_rounded, color: mint)),
                         title: Text(div['nama_divisi'], style: TextStyle(fontWeight: FontWeight.bold, color: txtColor)),
                         subtitle: FutureBuilder<int>(
                           future: DatabaseHelper.instance.getTotalPengeluaranByDivisi(div['id']),
@@ -675,43 +595,23 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                             final sisa = alokasi - terpakai;
                             final isOverBudget = alokasi > 0 && sisa < 0;
                             return Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              crossAxisAlignment: CrossAxisAlignment.end,
+                              mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.end,
                               children: [
-                                Text(
-                                  alokasi == 0 ? 'Alokasi' : 'Sisa Alokasi', 
-                                  style: const TextStyle(fontSize: 10, color: Colors.blueGrey, fontWeight: FontWeight.bold),
-                                ),
-                                Text(
-                                  alokasi == 0 ? 'Tak Dibatasi' : (_isBalanceHidden ? 'Rp ••••••••' : formatRupiah(sisa)),
-                                  style: TextStyle(
-                                    color: alokasi == 0 
-                                        ? Colors.blueGrey 
-                                        : (isOverBudget ? Colors.red.shade600 : (_isDarkMode ? mint : navy)), 
-                                    fontWeight: FontWeight.w900, 
-                                    fontSize: 13,
-                                  ),
-                                ),
+                                Text(alokasi == 0 ? 'Alokasi' : 'Sisa Alokasi', style: const TextStyle(fontSize: 10, color: Colors.blueGrey, fontWeight: FontWeight.bold)),
+                                Text(alokasi == 0 ? 'Tak Dibatasi' : (_isBalanceHidden ? 'Rp ••••••••' : formatRupiah(sisa)), style: TextStyle(color: alokasi == 0 ? Colors.blueGrey : (isOverBudget ? Colors.red.shade600 : (_isDarkMode ? mint : navy)), fontWeight: FontWeight.w900, fontSize: 13)),
                               ],
                             );
                           },
                         ),
                         children: [
                           Container(
-                            padding: const EdgeInsets.only(left: 16, right: 16, bottom: 16),
-                            width: double.infinity,
-                            decoration: BoxDecoration(
-                              color: innerContainerColor,
-                              borderRadius: const BorderRadius.vertical(bottom: Radius.circular(16)),
-                            ),
+                            padding: const EdgeInsets.only(left: 16, right: 16, bottom: 16), width: double.infinity,
+                            decoration: BoxDecoration(color: innerContainerColor, borderRadius: const BorderRadius.vertical(bottom: Radius.circular(16))),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 const Divider(),
-                                const Padding(
-                                  padding: EdgeInsets.symmetric(vertical: 8.0),
-                                  child: Text('Riwayat Pengeluaran:', style: TextStyle(fontWeight: FontWeight.w800, color: Colors.blueGrey)),
-                                ),
+                                const Padding(padding: EdgeInsets.symmetric(vertical: 8.0), child: Text('Riwayat Pengeluaran:', style: TextStyle(fontWeight: FontWeight.w800, color: Colors.blueGrey))),
                                 FutureBuilder<List<Map<String, dynamic>>>(
                                   future: DatabaseHelper.instance.getPengeluaranByDivisi(div['id']),
                                   builder: (context, pengeluaranSnapshot) {
@@ -744,8 +644,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                                                         _showUpdatePengeluaranDialog(p, div['nama_divisi']);
                                                       } else if (value == 'delete') {
                                                         final confirm = await showDialog<bool>(
-                                                          context: context,
-                                                          builder: (dialogCtx) => AlertDialog(
+                                                          context: context, builder: (dialogCtx) => AlertDialog(
                                                             title: const Text('Hapus Pengeluaran', style: TextStyle(fontWeight: FontWeight.bold)),
                                                             content: Text('Hapus pengeluaran "${p['nama_barang']}"?'),
                                                             actions: [
@@ -754,16 +653,10 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                                                             ],
                                                           ),
                                                         );
-                                                        if (confirm == true) {
-                                                          await DatabaseHelper.instance.deletePengeluaran(p['id']);
-                                                          if (mounted) setState(() {});
-                                                        }
+                                                        if (confirm == true) { await DatabaseHelper.instance.deletePengeluaran(p['id']); if (mounted) setState(() {}); }
                                                       }
                                                     },
-                                                    itemBuilder: (context) => const [
-                                                      PopupMenuItem(value: 'edit', child: Text('Edit Data')),
-                                                      PopupMenuItem(value: 'delete', child: Text('Void (Hapus)', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold))),
-                                                    ],
+                                                    itemBuilder: (context) => const [PopupMenuItem(value: 'edit', child: Text('Edit Data')), PopupMenuItem(value: 'delete', child: Text('Void (Hapus)', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)))],
                                                   ),
                                               ],
                                             ),
@@ -776,11 +669,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                                 if (_isKetuplak)
                                   Align(
                                     alignment: Alignment.centerRight,
-                                    child: TextButton.icon(
-                                      onPressed: () => _showAddPengeluaranDialog(div['id'], div['nama_divisi']),
-                                      icon: Icon(Icons.add_shopping_cart, color: mint, size: 18),
-                                      label: Text('Tambah Pengeluaran', style: TextStyle(color: mint, fontWeight: FontWeight.bold)),
-                                    ),
+                                    child: TextButton.icon(onPressed: () => _showAddPengeluaranDialog(div['id'], div['nama_divisi']), icon: Icon(Icons.add_shopping_cart, color: mint, size: 18), label: Text('Tambah Pengeluaran', style: TextStyle(color: mint, fontWeight: FontWeight.bold))),
                                   ),
                               ],
                             ),
@@ -798,9 +687,6 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
     );
   }
 
-  // =================================================================
-  // TAB 3: MEMBER / ANGGOTA TIM (FITUR BARU)
-  // =================================================================
   Widget _buildMemberTab() {
     final Color bgCard = _isDarkMode ? const Color(0xFF1E1E1E) : Colors.white;
     final Color txtColor = _isDarkMode ? Colors.white : Colors.black87;
@@ -809,9 +695,11 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
       future: DatabaseHelper.instance.getDivisiByAcara(widget.idAcara),
       builder: (context, snapshot) {
         if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
-        
-        // Ambil semua data di tabel divisi, karena di sistem ini member/tim disimpan di tabel yang sama
-        final divisiList = snapshot.data!;
+        final divisiList = snapshot.data!.where((d) => 
+          d['nama_divisi'].toString().startsWith('Anggota:') || 
+          d['nama_divisi'].toString().startsWith('Anggota (Pending):') || 
+          d['nama_divisi'].toString().startsWith('Inti (Ketuplak:')
+        ).toList();
 
         return Column(
           children: [
@@ -820,13 +708,10 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
                 child: ElevatedButton.icon(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: mint.withValues(alpha: 0.15),
-                    elevation: 0,
-                    minimumSize: const Size(double.infinity, 50),
+                    backgroundColor: mint.withValues(alpha: 0.15), elevation: 0, minimumSize: const Size(double.infinity, 50),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                   ),
-                  onPressed: _showAddMemberDialog,
-                  icon: Icon(Icons.person_add_alt_1_rounded, color: mint),
+                  onPressed: _showAddMemberDialog, icon: Icon(Icons.person_add_alt_1_rounded, color: mint),
                   label: Text('Undang Anggota Baru', style: TextStyle(color: mint, fontWeight: FontWeight.bold)),
                 ),
               ),
@@ -841,9 +726,9 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                       final div = divisiList[index];
                       String rawName = div['nama_divisi'];
                       
-                      // Identifikasi tipe row berdasarkan pola string penyimpanan
                       bool isKetuplak = rawName.contains('Ketuplak:');
                       bool isAnggota = rawName.startsWith('Anggota:');
+                      bool isPending = rawName.startsWith('Anggota (Pending):'); 
                       
                       String displayName = rawName;
                       String roleName = 'Divisi Operasional';
@@ -852,35 +737,26 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
 
                       if (isKetuplak) {
                         displayName = rawName.replaceAll('Inti (Ketuplak: ', '').replaceAll(')', '');
-                        roleName = 'Ketua Pelaksana';
-                        icon = Icons.star_rounded;
-                        iconColor = Colors.orangeAccent;
+                        roleName = 'Ketua Pelaksana'; icon = Icons.star_rounded; iconColor = Colors.orangeAccent;
+                      } else if (isPending) {
+                        displayName = rawName.replaceAll('Anggota (Pending): ', '');
+                        roleName = 'Menunggu Konfirmasi...'; icon = Icons.hourglass_empty_rounded; iconColor = Colors.orange;
                       } else if (isAnggota) {
                         displayName = rawName.replaceAll('Anggota: ', '');
-                        roleName = 'Anggota Tim';
-                        icon = Icons.person_rounded;
-                        iconColor = _isDarkMode ? mint : navy;
+                        roleName = 'Anggota Tim'; icon = Icons.person_rounded; iconColor = _isDarkMode ? mint : navy;
                       }
 
                       return Container(
                         margin: const EdgeInsets.only(bottom: 12),
-                        decoration: BoxDecoration(
-                          color: bgCard,
-                          borderRadius: BorderRadius.circular(16),
-                          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: _isDarkMode ? 0.2 : 0.02), blurRadius: 8)],
-                        ),
+                        decoration: BoxDecoration(color: bgCard, borderRadius: BorderRadius.circular(16), boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: _isDarkMode ? 0.2 : 0.02), blurRadius: 8)]),
                         child: ListTile(
                           contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                          leading: CircleAvatar(
-                            backgroundColor: iconColor.withValues(alpha: 0.15),
-                            child: Icon(icon, color: iconColor),
-                          ),
+                          leading: CircleAvatar(backgroundColor: iconColor.withValues(alpha: 0.15), child: Icon(icon, color: iconColor)),
                           title: Text(displayName, style: TextStyle(fontWeight: FontWeight.bold, color: txtColor)),
                           subtitle: Text(roleName, style: TextStyle(fontSize: 12, color: _isDarkMode ? Colors.white60 : Colors.blueGrey.shade400)),
-                          // Logika: Ketuplak bisa menghapus anggota lain & divisi, tapi tidak bisa menghapus status Ketuplak miliknya sendiri
                           trailing: (_isKetuplak && !isKetuplak) 
                             ? IconButton(
-                                icon: Icon(isAnggota ? Icons.person_remove_rounded : Icons.delete_outline, color: Colors.red.shade400, size: 20),
+                                icon: Icon((isAnggota || isPending) ? Icons.person_remove_rounded : Icons.delete_outline, color: Colors.red.shade400, size: 20),
                                 onPressed: () => _confirmDeleteDivisi(div),
                               ) 
                             : (isKetuplak ? const Icon(Icons.verified_user_rounded, color: Colors.blue) : null),
@@ -896,7 +772,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
   }
 
   // =================================================================
-  // DIALOG-DIALOG CRUD
+  // DIALOG-DIALOG CRUD 
   // =================================================================
   void _showEditAcaraDialog() {
     final namaController = TextEditingController(text: _namaAcaraReal);
@@ -916,8 +792,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
             TextField(controller: budgetController, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: 'Total Budget Acara', prefixText: 'Rp ', border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)))),
             const SizedBox(height: 12),
             TextField(
-              controller: tanggalController,
-              readOnly: true,
+              controller: tanggalController, readOnly: true,
               decoration: InputDecoration(labelText: 'Tanggal', suffixIcon: const Icon(Icons.calendar_month), border: OutlineInputBorder(borderRadius: BorderRadius.circular(12))),
               onTap: () async {
                 DateTime init = DateTime.now();
@@ -962,11 +837,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
           children: [
             TextField(controller: nameController, decoration: InputDecoration(labelText: 'Nama Divisi', border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)))),
             const SizedBox(height: 12),
-            TextField(
-              controller: alokasiController,
-              keyboardType: TextInputType.number,
-              decoration: InputDecoration(labelText: 'Alokasi Dana', prefixText: 'Rp ', border: OutlineInputBorder(borderRadius: BorderRadius.circular(12))),
-            ),
+            TextField(controller: alokasiController, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: 'Alokasi Dana', prefixText: 'Rp ', border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)))),
           ],
         ),
         actions: [
@@ -979,10 +850,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
               if (nama.isNotEmpty) {
                 final sukses = await DatabaseHelper.instance.updateDivisiWithValidasi(div['id'], widget.idAcara, nama, alokasi);
                 if (!dialogContext.mounted) return;
-                if (!sukses) {
-                  ScaffoldMessenger.of(dialogContext).showSnackBar(SnackBar(backgroundColor: Colors.red.shade600, content: const Text('Gagal! Total alokasi divisi melebihi Budget Utama Acara.')));
-                  return;
-                }
+                if (!sukses) { ScaffoldMessenger.of(dialogContext).showSnackBar(SnackBar(backgroundColor: Colors.red.shade600, content: const Text('Gagal! Total alokasi divisi melebihi Budget.'))); return; }
                 Navigator.pop(dialogContext);
                 if (mounted) setState(() {});
               }
@@ -1057,11 +925,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
           children: [
             TextField(controller: nameController, decoration: InputDecoration(labelText: 'Nama Divisi', border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)))),
             const SizedBox(height: 12),
-            TextField(
-              controller: alokasiController,
-              keyboardType: TextInputType.number,
-              decoration: InputDecoration(labelText: 'Alokasi Dana', prefixText: 'Rp ', border: OutlineInputBorder(borderRadius: BorderRadius.circular(12))),
-            ),
+            TextField(controller: alokasiController, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: 'Alokasi Dana', prefixText: 'Rp ', border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)))),
           ],
         ),
         actions: [
@@ -1072,19 +936,11 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
               String nama = nameController.text.trim();
               int alokasi = int.tryParse(alokasiController.text.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
               if (nama.isNotEmpty) {
-                final sukses = await DatabaseHelper.instance.insertDivisiWithValidasi({
-                  'id_acara': widget.idAcara, 'nama_divisi': nama, 'alokasi_budget': alokasi,
-                });
+                final sukses = await DatabaseHelper.instance.insertDivisiWithValidasi({'id_acara': widget.idAcara, 'nama_divisi': nama, 'alokasi_budget': alokasi});
                 if (!dialogContext.mounted) return;
-                if (!sukses) {
-                  ScaffoldMessenger.of(dialogContext).showSnackBar(SnackBar(backgroundColor: Colors.red.shade600, content: const Text('Gagal! Total alokasi divisi melebihi Budget Utama Acara.')));
-                  return;
-                }
+                if (!sukses) { ScaffoldMessenger.of(dialogContext).showSnackBar(SnackBar(backgroundColor: Colors.red.shade600, content: const Text('Gagal! Total alokasi divisi melebihi Budget Utama Acara.'))); return; }
                 Navigator.pop(dialogContext);
-                if (mounted) {
-                  setState(() {});
-                  _checkKetuplakStatus(); 
-                }
+                if (mounted) { setState(() {}); _checkKetuplakStatus(); }
               }
             },
             child: const Text('Simpan', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
@@ -1128,9 +984,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
             style: ElevatedButton.styleFrom(backgroundColor: mint, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
             onPressed: () async {
               if (taskController.text.trim().isNotEmpty) {
-                await DatabaseHelper.instance.insertTask({
-                  'id_divisi': idDivisi, 'nama_task': taskController.text.trim(), 'is_done': 0, 'status': 'Belum Selesai', 'deadline': deadlineController.text.isEmpty ? null : deadlineController.text,
-                });
+                await DatabaseHelper.instance.insertTask({'id_divisi': idDivisi, 'nama_task': taskController.text.trim(), 'is_done': 0, 'status': 'Belum Selesai', 'deadline': deadlineController.text.isEmpty ? null : deadlineController.text});
                 if (!dialogContext.mounted) return;
                 Navigator.pop(dialogContext);
                 if (mounted) setState(() {});
@@ -1191,10 +1045,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                   divisiId: idDivisi, tanggal: tanggalController.text, namaBarang: namaBarangController.text.trim(), jumlah: jumlah, nominal: nominal,
                 );
                 if (!dialogContext.mounted) return;
-                if (!berhasil) {
-                  ScaffoldMessenger.of(dialogContext).showSnackBar(SnackBar(backgroundColor: Colors.red.shade600, content: const Text('Gagal! Pengeluaran ini melebihi batas alokasi dana divisi.')));
-                  return;
-                }
+                if (!berhasil) { ScaffoldMessenger.of(dialogContext).showSnackBar(SnackBar(backgroundColor: Colors.red.shade600, content: const Text('Gagal! Pengeluaran ini melebihi batas alokasi dana divisi.'))); return; }
                 Navigator.pop(dialogContext);
                 if (mounted) setState(() {});
               }
@@ -1256,10 +1107,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                   id: pengeluaran['id'], divisiId: pengeluaran['divisi_id'], tanggal: tanggalController.text, namaBarang: namaBarangController.text.trim(), jumlah: jumlah, nominal: nominal,
                 );
                 if (!dialogContext.mounted) return;
-                if (!berhasil) {
-                  ScaffoldMessenger.of(dialogContext).showSnackBar(SnackBar(backgroundColor: Colors.red.shade600, content: const Text('Gagal! Pengeluaran ini melebihi batas alokasi dana divisi.')));
-                  return;
-                }
+                if (!berhasil) { ScaffoldMessenger.of(dialogContext).showSnackBar(SnackBar(backgroundColor: Colors.red.shade600, content: const Text('Gagal! Pengeluaran ini melebihi batas alokasi dana divisi.'))); return; }
                 Navigator.pop(dialogContext);
                 if (mounted) setState(() {});
               }
