@@ -12,8 +12,9 @@ class PrefsHelper {
   static Future<void> setCurrentUsername(String value) async => await _prefs.setString('current_username', value);
 
   // 1. Key: Nama User
-  static String get userName => _prefs.getString('user_name') ?? 'Sunghoon';
+  static String get userName => _prefs.getString('user_name') ?? 'Pengguna';
   static Future<void> setUserName(String value) async {
+    // HANYA overwrite key yang spesifik untuk profil, data lain aman
     await _prefs.setString('user_name', value);
     if (currentUsername.isNotEmpty) {
       await _prefs.setString('simulasi_nama_$currentUsername', value);
@@ -45,7 +46,9 @@ class PrefsHelper {
       await _prefs.setString('simulasi_photo_$currentUsername', value);
     }
   }
+  
   static Future<void> deleteUserProfilePhoto() async {
+    // Pastikan HANYA menggunakan fungsi .remove(), BUKAN .clear()
     await _prefs.remove('user_profile_photo');
     if (currentUsername.isNotEmpty) {
       await _prefs.remove('simulasi_photo_$currentUsername');

@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:lottie/lottie.dart'; // 🔥 IMPORT BARU: Lottie Animation
+import 'package:lottie/lottie.dart'; 
 import '../helpers/database_helper.dart';
 import '../helpers/prefs_helper.dart';
 import 'event_detail_screen.dart';
@@ -55,6 +55,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
       for (var div in divisiList) {
         String namaDiv = div['nama_divisi'].toString();
+        // Cek apakah username login ada di dalam divisi project ini
         if (namaDiv.contains(savedName)) {
           isMember = true;
           idDivisiUser = div['id']; 
@@ -272,13 +273,12 @@ class _HomeScreenState extends State<HomeScreen> {
           _buildCustomHeader(),
           Expanded(
             child: _acaraList.isEmpty 
-                // 🔥 LOGIKA LOTTIE: Dipanggil saat _acaraList kosong 🔥
                 ? Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Lottie.asset(
-                          'assets/lottie/No Item Found.json', // 🔥 UPDATE NAMA FILE 
+                          'assets/lottie/No Item Found.json', 
                           width: 200,
                           height: 200,
                           fit: BoxFit.contain,
@@ -291,7 +291,6 @@ class _HomeScreenState extends State<HomeScreen> {
                       ],
                     ),
                   )
-                // Jika ada isinya, render list seperti biasa
                 : ListView.builder(
                     padding: const EdgeInsets.only(top: 16, left: 20, right: 20, bottom: 100),
                     physics: const BouncingScrollPhysics(),
@@ -374,10 +373,19 @@ class _HomeScreenState extends State<HomeScreen> {
                     },
                   ),
                   const SizedBox(width: 12),
+                  
+                  // 🔥 FIX LOGIKA NAVIGASI DOUBLE PUSH 🔥
                   GestureDetector(
                     onTap: () async {
-                      await Navigator.push(context, MaterialPageRoute(builder: (context) => const ProfilePage()));
-                      if (mounted) _refreshAcaraList(); 
+                      final isChanged = await Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => const ProfilePage()),
+                      );
+                      
+                      // Kalau User kembali dari Profile Page, refresh datanya dengan benar
+                      if (isChanged == true) {
+                        _refreshAcaraList(); 
+                      }
                     },
                     child: CircleAvatar(
                       radius: 22,

@@ -35,10 +35,11 @@ dependencies:
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
   intl: ^0.20.2
-  image_picker: ^1.0.0     # Untuk upload foto dari galeri/kamera
   lottie: ^3.3.3
-  crypto: ^3.0.7
   confetti: ^0.8.0
+  image_picker: ^1.2.2     # Untuk upload foto dari galeri/kamera
+  file_picker: ^11.0.2
+  open_file: ^3.5.11
 
 dev_dependencies:
   flutter_test:
