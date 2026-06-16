@@ -4,10 +4,12 @@ import 'screens/splash_screen.dart';
 import 'screens/auth_screen.dart'; 
 import 'screens/home_screen.dart';
 import 'screens/landing_page.dart';
+import 'package:intl/date_symbol_data_local.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await PrefsHelper.init();
+  await PrefsHelper.init(); 
+  await initializeDateFormatting('id_ID', null);
   runApp(const EventCrewApp());
 }
 
@@ -19,6 +21,7 @@ class EventCrewApp extends StatelessWidget {
     return MaterialApp(
       title: 'EventCrew',
       debugShowCheckedModeBanner: false,
+
       themeMode: PrefsHelper.isDarkMode ? ThemeMode.dark : ThemeMode.light,
       theme: ThemeData(
         scaffoldBackgroundColor: const Color(0xFFF4F7FC),
@@ -33,7 +36,6 @@ class EventCrewApp extends StatelessWidget {
           secondary: const Color(0xFF10B981),
         ),
       ),
-
       home: const SplashScreen(),
     );
   }
