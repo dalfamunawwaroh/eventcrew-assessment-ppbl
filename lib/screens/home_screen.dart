@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:lottie/lottie.dart'; 
 import '../helpers/database_helper.dart';
 import '../helpers/prefs_helper.dart';
 import 'event_detail_screen.dart';
@@ -23,11 +24,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
   List<Map<String, dynamic>> _acaraList = [];
   late String _userName; 
-  String _role = PrefsHelper.userRole;
   bool _isDarkMode = PrefsHelper.isDarkMode;
   bool _isBalanceHidden = PrefsHelper.isBalanceHidden; 
-  
-  // 🔥 FIX 1: Kosongkan dulu di awal, akan di-load di dalam fungsi
   String? _profilePhotoPath; 
 
   int _grandTotalBudget = 0;
@@ -39,13 +37,11 @@ class _HomeScreenState extends State<HomeScreen> {
     _refreshAcaraList();
   }
 
-  // 🔥 LOGIKA BARU: FILTER EVENT SESUAI USER DAN CEK STATUS PENDING
   void _refreshAcaraList() async {
     final semuaAcara = await DatabaseHelper.instance.getSemuaAcara();
     
     // Refresh Data Akun
     String savedName = PrefsHelper.userName;
-    String loginUsername = PrefsHelper.currentUsername; // ID login konstan (contoh: 'ervan')
     String savedPhoto = PrefsHelper.userProfilePhoto;
     
     List<Map<String, dynamic>> userAcaraList = [];
@@ -59,11 +55,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
       for (var div in divisiList) {
         String namaDiv = div['nama_divisi'].toString();
-        
-        // 🔥 SOLUSI UTAMA: Cek berdasarkan Nama Tampilan ATAU ID Login Permanen agar data TIDAK HILANG saat ganti nama profil
-        if (namaDiv.contains(savedName) || (loginUsername.isNotEmpty && namaDiv.contains(loginUsername))) {
+        // Cek apakah username login ada di dalam divisi project ini
+        if (namaDiv.contains(savedName)) {
           isMember = true;
-          idDivisiUser = div['id']; // Simpan ID divisi untuk keperluan Accept/Decline
+          idDivisiUser = div['id']; 
           
           if (namaDiv.startsWith('Inti (Ketuplak:')) {
             memberStatus = 'Ketuplak';
@@ -76,14 +71,12 @@ class _HomeScreenState extends State<HomeScreen> {
         }
       }
 
-      // Jika user termasuk bagian dari acara ini, masukkan ke dalam list Home
       if (isMember) {
         var acaraWithRole = Map<String, dynamic>.from(acara);
         acaraWithRole['user_role_status'] = memberStatus;
-        acaraWithRole['id_divisi_user'] = idDivisiUser; // Bawa data ID divisi
+        acaraWithRole['id_divisi_user'] = idDivisiUser; 
         userAcaraList.add(acaraWithRole);
 
-        // Hanya hitung ke Grand Total Budget jika user adalah Ketuplak di acara tsb
         if (memberStatus == 'Ketuplak') {
           totalBudget += (acara['budget_total'] as int? ?? 0);
         }
@@ -92,8 +85,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
     if (mounted) {
       setState(() {
-        _userName = savedName; // Pastikan nama ter-update
-        _profilePhotoPath = savedPhoto.isNotEmpty ? savedPhoto : null; // Pastikan foto ter-update
+        _userName = savedName; 
+        _profilePhotoPath = savedPhoto.isNotEmpty ? savedPhoto : null; 
         _acaraList = userAcaraList;
         _grandTotalBudget = totalBudget; 
       });
@@ -238,7 +231,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
                     await DatabaseHelper.instance.insertAcara({'nama_acara': nama, 'tanggal_acara': tanggal, 'budget_total': int.parse(rawBudget)});
                     await PrefsHelper.setUserRole('Ketuplak');
-                    if (mounted) setState(() => _role = 'Ketuplak');
                     _refreshAcaraList();
                     if (bottomSheetContext.mounted) Navigator.pop(bottomSheetContext);
                   },
@@ -281,7 +273,24 @@ class _HomeScreenState extends State<HomeScreen> {
           _buildCustomHeader(),
           Expanded(
             child: _acaraList.isEmpty 
-                ? Center(child: Text('Belum ada acara aktif. Mari buat baru!', style: TextStyle(color: _isDarkMode ? Colors.white60 : Colors.black54, fontWeight: FontWeight.w600)))
+                ? Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Lottie.asset(
+                          'assets/lottie/No Item Found.json', 
+                          width: 200,
+                          height: 200,
+                          fit: BoxFit.contain,
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'Belum ada acara aktif. Mari buat baru!', 
+                          style: TextStyle(color: _isDarkMode ? Colors.white60 : Colors.black54, fontWeight: FontWeight.w600, fontSize: 14)
+                        ),
+                      ],
+                    ),
+                  )
                 : ListView.builder(
                     padding: const EdgeInsets.only(top: 16, left: 20, right: 20, bottom: 100),
                     physics: const BouncingScrollPhysics(),
@@ -364,26 +373,23 @@ class _HomeScreenState extends State<HomeScreen> {
                     },
                   ),
                   const SizedBox(width: 12),
+                  
+                  // 🔥 FIX LOGIKA NAVIGASI DOUBLE PUSH 🔥
                   GestureDetector(
-                    onTap: () {
-                      // 🔥 FIX TUTUP KURUNG SINTAKS: Membuka ProfilePage dan merefresh state & list acara secara bersih saat kembali
-                      Navigator.push(
+                    onTap: () async {
+                      final isChanged = await Navigator.push(
                         context,
                         MaterialPageRoute(builder: (context) => const ProfilePage()),
-                      ).then((_) {
-                        setState(() {
-                          _userName = PrefsHelper.userName;
-                          _role = PrefsHelper.userRole;
-                          final photo = PrefsHelper.userProfilePhoto;
-                          _profilePhotoPath = photo.isEmpty ? null : photo;
-                        });
+                      );
+                      
+                      // Kalau User kembali dari Profile Page, refresh datanya dengan benar
+                      if (isChanged == true) {
                         _refreshAcaraList(); 
-                      });
+                      }
                     },
                     child: CircleAvatar(
                       radius: 22,
                       backgroundColor: Colors.white.withValues(alpha: 0.2),
-                      // 🔥 FIX 3: Prioritaskan menampilkan foto dari File asli jika ada
                       backgroundImage: (_profilePhotoPath != null && File(_profilePhotoPath!).existsSync()) 
                           ? FileImage(File(_profilePhotoPath!)) 
                           : null,
@@ -465,7 +471,6 @@ class _HomeScreenState extends State<HomeScreen> {
         },
         child: Padding(
           padding: const EdgeInsets.all(20),
-          // Perubahan dalam card dibatasi hanya agar aman dibaca
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [

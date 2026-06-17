@@ -206,6 +206,19 @@ class DatabaseHelper {
     return await db.query('divisi', where: 'id_acara = ?', whereArgs: [idAcara]);
   }
 
+  Future<bool> checkUserHasCreatedEvent(String username) async {
+    final db = await instance.database;
+    final res = await db.rawQuery(
+      "SELECT COUNT(*) as count FROM divisi WHERE nama_divisi = ?",
+      ['Inti (Ketuplak: $username)']
+    );
+    if (res.isNotEmpty) {
+      final count = res.first['count'] as int? ?? 0;
+      return count > 0;
+    }
+    return false;
+  }
+
   Future<int> deleteDivisi(int id) async {
     final db = await instance.database;
     return await db.transaction((txn) async {

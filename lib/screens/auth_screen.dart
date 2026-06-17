@@ -25,7 +25,7 @@ class _AuthScreenState extends State<AuthScreen> {
   final _regUserCtrl = TextEditingController();
   final _regPassCtrl = TextEditingController(); 
 
-  // 🔥 STATE UNTUK TOGGLE ICON MATA (SHOW/HIDE PASSWORD)
+  // STATE UNTUK TOGGLE ICON MATA (SHOW/HIDE PASSWORD)
   bool _isLoginPassVisible = false;
   bool _isRegPassVisible = false;
 
@@ -198,12 +198,11 @@ class _AuthScreenState extends State<AuthScreen> {
           _customTextField(controller: _loginUserCtrl, label: 'Username', icon: Icons.person_outline_rounded, obscure: false),
           const SizedBox(height: 16),
           
-          // 🔥 KOMPONEN PASSWORD DENGAN IKON MATA TOGGLE (LOGIN)
           _customTextField(
             controller: _loginPassCtrl, 
             label: 'Password', 
             icon: Icons.lock_open_rounded, 
-            obscure: !_isLoginPassVisible, // Tergantung state
+            obscure: !_isLoginPassVisible, 
             suffixIcon: IconButton(
               icon: Icon(
                 _isLoginPassVisible ? Icons.visibility_rounded : Icons.visibility_off_rounded,
@@ -223,9 +222,9 @@ class _AuthScreenState extends State<AuthScreen> {
             text: 'Sign In',
             onPressed: () async {
               String username = _loginUserCtrl.text.trim();
-              String password = _loginPassCtrl.text;
+              String rawPassword = _loginPassCtrl.text; // Plain text password
 
-              if (username.isEmpty || password.isEmpty) {
+              if (username.isEmpty || rawPassword.isEmpty) {
                 ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Semua kolom wajib diisi!'), backgroundColor: Colors.redAccent));
                 return;
               }
@@ -238,10 +237,15 @@ class _AuthScreenState extends State<AuthScreen> {
 
               if (savedName == null) {
                 ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Username belum terdaftar! Silakan Sign Up terlebih dahulu.'), backgroundColor: Colors.redAccent));
-              } else if (savedPass != password) {
+              } else if (savedPass != rawPassword) { // Pengecekan tanpa hash
                 ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Password salah! Coba lagi.'), backgroundColor: Colors.redAccent));
               } else {
-                await PrefsHelper.setCurrentUsername(username);
+                try {
+                   await PrefsHelper.setCurrentUsername(username); 
+                } catch(e) {
+                   // Abaikan jika tidak dipakai di struktur aplikasi lain
+                }
+                
                 await PrefsHelper.setUserName(savedName); 
                 
                 String? savedRole = prefs.getString('simulasi_role_$username');
@@ -282,12 +286,11 @@ class _AuthScreenState extends State<AuthScreen> {
           _customTextField(controller: _regUserCtrl, label: 'Username', icon: Icons.alternate_email_rounded, obscure: false),
           const SizedBox(height: 12),
           
-          // 🔥 KOMPONEN PASSWORD DENGAN IKON MATA TOGGLE (REGISTER)
           _customTextField(
             controller: _regPassCtrl, 
             label: 'Buat Password', 
             icon: Icons.lock_outline_rounded, 
-            obscure: !_isRegPassVisible, // Tergantung state
+            obscure: !_isRegPassVisible, 
             suffixIcon: IconButton(
               icon: Icon(
                 _isRegPassVisible ? Icons.visibility_rounded : Icons.visibility_off_rounded,
@@ -308,9 +311,9 @@ class _AuthScreenState extends State<AuthScreen> {
             onPressed: () async {
               String name = _regNameCtrl.text.trim();
               String username = _regUserCtrl.text.trim();
-              String password = _regPassCtrl.text;
+              String rawPassword = _regPassCtrl.text;
 
-              if (name.isEmpty || username.isEmpty || password.isEmpty) {
+              if (name.isEmpty || username.isEmpty || rawPassword.isEmpty) {
                 ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Mohon lengkapi seluruh data pendaftaran!'), backgroundColor: Colors.redAccent));
                 return;
               }
@@ -322,10 +325,15 @@ class _AuthScreenState extends State<AuthScreen> {
                  return;
               }
 
+              // Simpan langsung Plain Text tanpa Hash
               await prefs.setString('simulasi_nama_$username', name);
-              await prefs.setString('simulasi_pass_$username', password);
+              await prefs.setString('simulasi_pass_$username', rawPassword); 
 
-              await PrefsHelper.setCurrentUsername(username);
+              try {
+                 await PrefsHelper.setCurrentUsername(username);
+              } catch (e) {
+                 // Abaikan
+              }
               await PrefsHelper.setUserName(name);
               await PrefsHelper.setUserRole('Anggota'); 
               await PrefsHelper.deleteUserProfilePhoto();
@@ -362,13 +370,12 @@ class _AuthScreenState extends State<AuthScreen> {
     );
   }
 
-  // 🔥 FIX: Menambahkan parameter opsi `suffixIcon` ke _customTextField
   Widget _customTextField({
     required TextEditingController controller, 
     required String label, 
     required IconData icon, 
     required bool obscure,
-    Widget? suffixIcon, // <--- Parameter baru di sini
+    Widget? suffixIcon, 
   }) {
     return TextField(
       controller: controller,
@@ -378,7 +385,7 @@ class _AuthScreenState extends State<AuthScreen> {
         labelText: label,
         labelStyle: TextStyle(color: _isDarkMode ? Colors.blueGrey.shade300 : Colors.blueGrey.shade600, fontSize: 13, fontWeight: FontWeight.w500),
         prefixIcon: Icon(icon, color: _isDarkMode ? mintGreen : electricBlue, size: 20),
-        suffixIcon: suffixIcon, // <--- Dipasang di sini
+        suffixIcon: suffixIcon, 
         filled: true,
         fillColor: _isDarkMode ? Colors.black.withValues(alpha: 0.2) : Colors.white.withValues(alpha: 0.7),
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
